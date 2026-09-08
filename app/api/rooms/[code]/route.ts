@@ -13,6 +13,8 @@ import {
   requireSession,
   setReady,
   setRole,
+  exitVehicle,
+  startVehicleSwitch,
   startRoom,
   touchSession,
   updatePlayerPosition,
@@ -72,6 +74,12 @@ export async function PATCH(request: Request, context: RouteContext): Promise<Re
       case "position":
         await updatePlayerPosition(database, session, body.lat, body.lng, now);
         break;
+      case "exit_vehicle":
+        await exitVehicle(database, session, now);
+        break;
+      case "start_vehicle_switch":
+        await startVehicleSwitch(database, session, body.kind, now);
+        break;
       default:
         throw new ApiProblem(400, "INVALID_ACTION", "Ismeretlen szobaművelet.");
     }
@@ -81,3 +89,4 @@ export async function PATCH(request: Request, context: RouteContext): Promise<Re
     return errorResponse(error);
   }
 }
+
