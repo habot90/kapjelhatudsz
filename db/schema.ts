@@ -46,6 +46,13 @@ export const roomPlayers = sqliteTable(
     vehicleStartedAt: integer("vehicle_started_at"),
     switchEndsAt: integer("switch_ends_at"),
     vehicleCycle: integer("vehicle_cycle").notNull().default(0),
+    vehicleState: text("vehicle_state", { enum: ["driving", "dismounted", "switching"] })
+      .notNull()
+      .default("dismounted"),
+    switchKind: text("switch_kind", { enum: ["prearranged", "hitchhike"] }),
+    lastExitLat: real("last_exit_lat"),
+    lastExitLng: real("last_exit_lng"),
+    lastExitAt: integer("last_exit_at"),
   },
   (table) => [
     uniqueIndex("idx_room_players_token_hash").on(table.tokenHash),
@@ -56,3 +63,4 @@ export const roomPlayers = sqliteTable(
       .where(sql`${table.role} = 'hunter' AND ${table.leftAt} IS NULL`),
   ],
 );
+
