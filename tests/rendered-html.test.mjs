@@ -105,9 +105,14 @@ test("keeps the online map, protected positions and timed signals wired together
   assert.match(roomApi, /CAPTURE_DISTANCE_METERS = 50/);
   assert.match(roomApi, /await syncRoomGame\(database, session\.roomCode, now\)[\s\S]*UPDATE room_players/);
   assert.match(roomApi, /const exactPositionVisible = player\.id === meId/);
-  assert.match(roomApi, /me\?\.role === "hunter" && exposed/);
+  assert.match(roomApi, /me\?\.role === "hunter" && liveTracked/);
   assert.match(roomApi, /me\?\.role === "hunter" && player\.role === "runner"/);
   assert.match(roomApi, /MOVEMENT_TOO_FAST/);
+  assert.match(roomApi, /VEHICLE_DURATION_MS = 5 \* 60 \* 1000/);
+  assert.match(roomApi, /VEHICLE_IMMOBILE/);
+  assert.match(game, /KISZÁLLOK/);
+  assert.match(game, /STOPPOLOK/);
   assert.match(migration, /position_updated_at/);
   assert.match(migration, /revision/);
 });
+
