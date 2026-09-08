@@ -121,3 +121,66 @@
 - Az új autó helyesen újraindítja az ötperces ciklust.
 - A zónán kívüli láthatóság elsőbbséget élvez a kiszállással szemben.
 - A 6 perces helyzetjel és az 50 méteres elfogás változatlanul működik.
+
+## Jövőbeli játékmeneti ötletek (2026-09-08)
+
+Az alábbi ötleteket Boti megőrzésre elfogadta. Ezek még nem végleges játékszabályok: megvalósítás előtt mindegyiket külön issue-ban kell részletezni és jóváhagyni.
+
+### 1. Kötelező menekülő-célpontok
+
+- A menekülők 10–15 percenként új, időkorlátos célpontot kapnak, például teret, pályaudvart vagy benzinkutat.
+- A célpont mozgásra kényszerít, és lehetőséget ad az üldözőnek a várható útvonalak kikövetkeztetésére.
+- A sikeres elérés pontot vagy egyszer használható taktikai előnyt adhat.
+
+### 2. Többféle autócsere
+
+- Előre egyeztetett autó: gyors csere, de csak kijelölt átadási ponton.
+- Stoppolás: megfelelő közúton indítható, 25–45 másodperc mozdulatlan várakozással.
+- Lehetséges későbbi változat: biztonságosabb, lassabb csere, amely késlelteti az üldöző nyomát.
+
+### 3. Haladási irányt mutató helyzetjel
+
+- A 6 perces helyzetjel a befagyasztott pont mellett a jel pillanatában mért haladási irányt is mutathatja.
+- A menekülő kereszteződésnél kivárhatja a jeladást, majd irányt válthat vagy autót cserélhet.
+
+### 4. Üldözői útlezárás
+
+- Az üldöző korlátozott időközönként egy rövid útszakaszt vagy kereszteződést 60–90 másodpercre lezárhat.
+- A lezárás nem fog el automatikusan, hanem kerülőre és újratervezésre kényszerít.
+
+### 5. Civil bejelentések
+
+- A bejelentések eltérő pontosságúak és megbízhatóságúak lehetnek: biztos, bizonytalan vagy akár hamis.
+- Az üldöző és a menekülők is kaphatnak jelentéseket, de azok száma és gyakorisága korlátozott.
+- A jelölés pont helyett pontosságtól függő méretű terület is lehet.
+
+### 6. Közeli üldözés fokozatai
+
+- 500 méteren belül enyhe figyelmeztetés.
+- 300 méteren belül automatikus közelítés és erősebb hang-, vizuális vagy rezgésjelzés.
+- 100 méteren belül intenzív veszélyjelzés és mérsékelt lassítás.
+- 50 méteren belül elfogás és bilincsanimáció.
+- A felek ne kapjanak folyamatos, méterre pontos távolságot; elsősorban a veszély fokozódását érzékeljék.
+
+### 7. Menekülők közötti segítség
+
+- A menekülők megoszthatnak egymással korlátozott információt vagy civil jelentést.
+- Egy játékos csalit játszhat, hamis nyomot kelthet vagy magára vonhatja az üldözőt.
+- A csapatjáték nem fedheti fel automatikusan minden menekülő pontos helyét.
+
+### 8. Részletes pontozás
+
+- Menekülői pontok: túlélési idő, elért célpontok, sikeres autócserék, kockázatos közelség és csapattárs segítése.
+- Üldözői pontok: elfogások, gyors megtalálás és a helyes civil jelentések felismerése.
+- A pontozás egészítse ki, ne váltsa le az alapvető győzelmi feltételeket.
+
+### Javasolt fejlesztési sorrend
+
+1. Az autóváltás alapverziója.
+2. Kötelező menekülő-célpontok.
+3. Haladási irányt mutató helyzetjel.
+4. Civil bejelentések.
+5. Üldözői útlezárás.
+6. Menekülők közötti segítség és részletes pontozás.
+
+Az első nagy taktikai csomag ajánlott összeállítása: **célpontok + autóváltás + haladási irányt mutató helyzetjel**.
