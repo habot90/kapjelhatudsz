@@ -1,4 +1,17 @@
-# vinext-starter
+# Kapj el, ha tudsz!
+
+Magyar nyelvű online, közúti üldözős játék Budapesten és romániai városokban.
+
+- Élő béta: https://virtualis-hajsza-demo.simplepixel.chatgpt.site
+- Fejlesztés, indítás és fájltérkép: [FEJLESZTES.md](FEJLESZTES.md)
+- Claude és más fejlesztők átadási leírása: [CLAUDE.md](CLAUDE.md)
+- Egyeztetett szabályok: [JATEKMENET.md](JATEKMENET.md)
+
+A szobalétrehozáskor országot és várost választhatsz: az alapértelmezett Magyarország / Budapest, mellette 12 romániai város elérhető. Egy hajsza egy városban, nyolc zónával zajlik. A részletes online autóváltás még fejlesztendő. A GitHub-tár frissítése nem jelent automatikus éles közzétételt.
+
+Az alábbi rész a használt keretrendszer eredeti technikai útmutatója. A projekt adatbázissémája már nem üres; a tényleges állapotot a fenti projektleírások és a forrás mutatják.
+
+## Keretrendszer: vinext-starter
 
 A clean full-stack starter running on
 [vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and

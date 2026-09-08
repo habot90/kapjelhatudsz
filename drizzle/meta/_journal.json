@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1788445687429,
+      "tag": "0000_aberrant_stepford_cuckoos",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1788464582895,
+      "tag": "0001_hesitant_bulldozer",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788805734199,
+      "tag": "0002_jittery_midnight",
+      "breakpoints": true
+    }
+  ]
+}

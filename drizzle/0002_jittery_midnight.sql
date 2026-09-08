@@ -1,0 +1,1 @@
+ALTER TABLE `rooms` ADD `city_id` text DEFAULT 'bucharest' NOT NULL;

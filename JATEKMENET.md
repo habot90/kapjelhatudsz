@@ -1,5 +1,13 @@
 # Kapj el, ha tudsz! – játékmeneti specifikáció
 
+## Városválasztás
+
+- Szobalétrehozáskor a gazda országot és várost választ: Magyarországon Budapest, Romániában 12 város érhető el. Az új szobák alapértelmezett helyszíne Budapest. A már meglévő szobák helyszíne nem változik.
+- A választás a szerveren tárolódik; csatlakozás és újracsatlakozás után is mindenki ugyanazt a helyszínt kapja.
+- A kezdőpontok előre ellenőrzött közúti pontok, a játék részeként tárolva. Az indulás nem igényel külső útvonaltervező-kérést; a vezetés közbeni útvonaltervezés továbbra is hálózatot igényel.
+- A nyolc, tizenöt percenként váltakozó zóna a kiválasztott városhoz tartozik. Nincs városok közötti teleportálás.
+- A helyszín szobán belül rögzített; másik városhoz új szobát kell nyitni. A külön gyakorló mód Bukarestben marad.
+
 ## Térképnézet és kamerakövetés
 
 - Az autó mozgása nem akadályozhatja a térkép kézi böngészését.
