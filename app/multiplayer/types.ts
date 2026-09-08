@@ -1,4 +1,6 @@
 export type PlayerRole = "hunter" | "runner";
+export type VehicleState = "driving" | "dismounted" | "switching";
+export type VehicleSwitchKind = "prearranged" | "hitchhike";
 
 export type RoomStatus = "lobby" | "playing" | "finished";
 
@@ -17,8 +19,19 @@ export type RoomPlayer = {
   isHost: boolean;
   caught: boolean;
   exposed: boolean;
+  liveTracked: boolean;
   position: PlayerPosition | null;
   signalPosition: PlayerPosition | null;
+  lastExitPosition: PlayerPosition | null;
+  vehicle: {
+    state: VehicleState;
+    switchKind: VehicleSwitchKind | null;
+    startedAt: string | null;
+    expiresAt: string | null;
+    switchEndsAt: string | null;
+    cycle: number;
+    overdue: boolean;
+  } | null;
 };
 
 export type RoomGameState = {
@@ -74,10 +87,13 @@ export type RoomPatchAction =
   | { action: "start" }
   | { action: "leave" }
   | { action: "heartbeat" }
-  | { action: "position"; lat: number; lng: number };
+  | { action: "position"; lat: number; lng: number }
+  | { action: "exit_vehicle" }
+  | { action: "start_vehicle_switch"; kind: VehicleSwitchKind };
 
 export type ConnectionState =
   | "connecting"
   | "online"
   | "reconnecting"
   | "offline";
+
