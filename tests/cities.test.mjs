@@ -131,6 +131,16 @@ test("server owns the five-minute vehicle cycle, exit trace and both switch mode
   assert.equal(visibleRunner.liveTracked, true);
   assert.ok(visibleRunner.position);
 
+  await assert.rejects(
+    api.selectHandoffPoint(db, rs, initialRunner.position.lat, initialRunner.position.lng, startedAt + 3 * 60 * 1000),
+    error => error.code === "HANDOFF_TOO_EARLY",
+  );
+  globalThis.fetch = async () => Response.json({
+    code: "Ok",
+    waypoints: [{ distance: 0, location: [initialRunner.position.lng, initialRunner.position.lat] }],
+  });
+  await api.selectHandoffPoint(db, rs, initialRunner.position.lat, initialRunner.position.lng, overdueAt + 500);
+
   await api.exitVehicle(db, rs, overdueAt + 1000);
   const afterExit = await api.getRoomSnapshot(db, host.room.code, hs.playerId, overdueAt + 2000);
   assert.ok(afterExit.players.find(p => p.id === rs.playerId).lastExitPosition);
@@ -147,6 +157,10 @@ test("server owns the five-minute vehicle cycle, exit trace and both switch mode
   const switched = await api.getRoomSnapshot(db, host.room.code, rs.playerId, switchStartedAt + 10_001);
   assert.equal(switched.players.find(p => p.id === rs.playerId).vehicle.state, "driving");
   assert.equal(switched.players.find(p => p.id === rs.playerId).vehicle.cycle, 1);
+  await assert.rejects(
+    api.updatePlayerPosition(db, rs, initialRunner.position.lat + 0.005, initialRunner.position.lng, switchStartedAt + 11_001),
+    error => error.code === "MOVEMENT_TOO_FAST",
+  );
 
   await api.exitVehicle(db, rs, switchStartedAt + 11_000);
   const hitchStartedAt = switchStartedAt + 12_000;
