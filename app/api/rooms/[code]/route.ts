@@ -15,6 +15,7 @@ import {
   setRole,
   exitVehicle,
   startVehicleSwitch,
+  selectHandoffPoint,
   startRoom,
   touchSession,
   updatePlayerPosition,
@@ -76,6 +77,9 @@ export async function PATCH(request: Request, context: RouteContext): Promise<Re
         break;
       case "exit_vehicle":
         await exitVehicle(database, session, now);
+        break;
+      case "select_handoff":
+        await selectHandoffPoint(database, session, body.lat, body.lng, now);
         break;
       case "start_vehicle_switch":
         await startVehicleSwitch(database, session, body.kind, now);
