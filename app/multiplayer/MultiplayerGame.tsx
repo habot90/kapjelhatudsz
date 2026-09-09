@@ -9,6 +9,7 @@ import { GAME_BOUNDS, getCity, getCityZones } from "./cities";
 
 type LatLng = [number, number];
 type RouteState = { coords: LatLng[]; index: number };
+type HandoffCandidate = { point: LatLng; distance: number };
 type AlertState = { kind: "signal" | "capture" | "info"; title: string; detail: string } | null;
 
 const SESSION_KEY = "kapj-el-ha-tudsz.room-session.v1";
@@ -86,6 +87,7 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
   const [clockNow, setClockNow] = useState(() => Date.parse(initialRoom.serverNow));
   const [leaving, setLeaving] = useState(false);
   const [vehicleBusy, setVehicleBusy] = useState(false);
+  const [handoffCandidates, setHandoffCandidates] = useState<HandoffCandidate[]>([]);
   const [mapReady, setMapReady] = useState(false);
   const [cameraFollowing, setCameraFollowing] = useState(true);
 
@@ -455,6 +457,15 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
       if (!rawCoordinates?.length) throw new Error("route");
       const coords = rawCoordinates.map(([lng, lat]) => [lat, lng] as LatLng);
       routeRef.current = { coords: [from, ...coords], index: 0 };
+      if (currentMe.role === "runner") {
+        const startedAt = currentRoom.startedAt ? Date.parse(currentRoom.startedAt) : Date.now();
+        const phase = Math.min(getCityZones(currentRoom.cityId).length - 1, Math.floor(Math.max(0, Date.now() + serverOffsetRef.current - startedAt) / (ZONE_SECONDS * 1000)));
+        const zone = getCityZones(currentRoom.cityId)[phase];
+        const usable = coords.filter((point) => map.distance(from, point) >= 120 && map.distance(point, [zone.lat, zone.lng]) <= zone.radius);
+        const indexes = usable.length ? [0.25, 0.55, 0.85].map((ratio) => Math.min(usable.length - 1, Math.floor((usable.length - 1) * ratio))) : [];
+        const unique = indexes.map((index) => usable[index]).filter((point, index, all) => all.findIndex((item) => item[0] === point[0] && item[1] === point[1]) === index);
+        setHandoffCandidates(unique.map((point) => ({ point, distance: Math.round(map.distance(from, point)) })));
+      }
       routeLineRef.current?.remove();
       routeLineRef.current = L.polyline(routeRef.current.coords, {
         color: currentMe.role === "hunter" ? "#36bffa" : "#ff8a45",
@@ -703,6 +714,20 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
     }
   };
 
+  const handleHandoffSelection = async (point: LatLng) => {
+    if (vehicleBusy) return;
+    setVehicleBusy(true);
+    try {
+      const next = await patchRoom(session, { action: "select_handoff", lat: point[0], lng: point[1] });
+      acceptSnapshot(next);
+      setAlert({ kind: "info", title: "ÁTADÁSI PONT RÖGZÍTVE", detail: "Érj 75 méteren belülre, majd szállj ki az autóból." });
+    } catch (error) {
+      setAlert({ kind: "info", title: "A PONT NEM HASZNÁLHATÓ", detail: error instanceof Error ? error.message : "Válassz másik közúti pontot." });
+    } finally {
+      setVehicleBusy(false);
+    }
+  };
+
   const handleLeave = async () => {
     if (leaving) return;
     setLeaving(true);
@@ -840,6 +865,18 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
                   <>
                     <div className={styles.vehicleClock}>{vehicle.overdue ? "TÚLIDŐ" : formatTime(vehicleLeft)}</div>
                     <p>{vehicle.overdue ? "Az üldöző folyamatosan lát, amíg ki nem szállsz." : vehicleWarning === "danger" ? "10 másodpercen belül cserélj autót!" : vehicleWarning === "warning" ? "Hamarosan autót kell cserélned." : "Öt perc után az üldöző élőben látni fog."}</p>
+                    {vehicleLeft <= 60 && !vehicle.overdue && (
+                      <div className={styles.handoffChoices}>
+                        <small>VÁLASSZ ÁTADÁSI PONTOT</small>
+                        {handoffCandidates.length ? (
+                          <div>{handoffCandidates.map((candidate, index) => {
+                            const point = candidate.point;
+                            const selected = vehicle.handoffPoint && Math.abs(vehicle.handoffPoint.lat - point[0]) < 0.00001 && Math.abs(vehicle.handoffPoint.lng - point[1]) < 0.00001;
+                            return <button type="button" key={`${point[0]}-${point[1]}`} className={selected ? styles.handoffSelected : ""} disabled={vehicleBusy} onClick={() => void handleHandoffSelection(point)}>{String.fromCharCode(65 + index)}<span>{candidate.distance} m</span></button>;
+                          })}</div>
+                        ) : <p>Jelölj ki előbb egy közúti útvonalat.</p>}
+                      </div>
+                    )}
                     <button type="button" className={styles.exitVehicleButton} disabled={vehicleBusy} onClick={() => void handleVehicleAction("exit")}>KISZÁLLOK</button>
                   </>
                 ) : vehicle.state === "dismounted" ? (
@@ -847,7 +884,7 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
                     <div className={styles.vehicleClock}>ÁLLSZ</div>
                     <p>Gyalogos mozgás nincs. Válaszd ki a következő autót.</p>
                     <div className={styles.switchButtons}>
-                      <button type="button" disabled={vehicleBusy} onClick={() => void handleVehicleAction("prearranged")}><strong>EGYEZTETETT AUTÓ</strong><small>10 MÁSODPERC</small></button>
+                      <button type="button" disabled={vehicleBusy || !vehicle.handoffPoint} onClick={() => void handleVehicleAction("prearranged")}><strong>EGYEZTETETT AUTÓ</strong><small>{vehicle.handoffPoint ? "10 MÁSODPERC" : "NINCS KIJELÖLT PONT"}</small></button>
                       <button type="button" disabled={vehicleBusy} onClick={() => void handleVehicleAction("hitchhike")}><strong>STOPPOLOK</strong><small>25–45 MÁSODPERC</small></button>
                     </div>
                   </>
