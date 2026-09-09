@@ -34,6 +34,14 @@
 .switchButtons small { color: #8fa4ae; font: 750 9px/1 var(--font-geist-mono),monospace; }
 .switchProgress { height: 5px; overflow: hidden; border-radius: 5px; background: #1c3039; }
 .switchProgress i { display: block; height: 100%; background: linear-gradient(90deg,var(--orange),#ffd067); transition: width 1s linear; }
+.handoffChoices { margin: 0 0 10px; padding: 9px; display: grid; gap: 7px; border: 1px solid rgba(255,138,69,.28); border-radius: 7px; background: rgba(5,12,16,.55); }
+.handoffChoices > small { color: #ffb17d; font: 800 9px/1 var(--font-geist-mono),monospace; letter-spacing: .12em; }
+.handoffChoices > p { margin: 0; color: #8299a4; font-size: 11px; }
+.handoffChoices > div { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
+.handoffChoices button { min-height: 42px; display: grid; place-items: center; gap: 2px; border: 1px solid #304650; border-radius: 6px; color: #eef8fc; background: #102028; font: 900 13px/1 var(--font-geist-mono),monospace; cursor: pointer; }
+.handoffChoices button span { color: #86a0ac; font-size: 9px; }
+.handoffChoices button.handoffSelected { color: #071116; border-color: var(--green); background: var(--green); box-shadow: 0 0 16px rgba(67,220,141,.2); }
+.handoffChoices button.handoffSelected span { color: #173d2b; }
 
 @media (max-width: 700px) {
   .vehicleClock { font-size: 32px; }
