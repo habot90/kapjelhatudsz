@@ -31,6 +31,7 @@ export type RoomPlayer = {
     switchEndsAt: string | null;
     cycle: number;
     overdue: boolean;
+    handoffPoint: PlayerPosition | null;
   } | null;
 };
 
@@ -89,6 +90,7 @@ export type RoomPatchAction =
   | { action: "heartbeat" }
   | { action: "position"; lat: number; lng: number }
   | { action: "exit_vehicle" }
+  | { action: "select_handoff"; lat: number; lng: number }
   | { action: "start_vehicle_switch"; kind: VehicleSwitchKind };
 
 export type ConnectionState =
