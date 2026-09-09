@@ -60,6 +60,9 @@ type PlayerRow = {
   last_exit_lat: number | null;
   last_exit_lng: number | null;
   last_exit_at: number | null;
+  handoff_lat: number | null;
+  handoff_lng: number | null;
+  handoff_selected_at: number | null;
 };
 
 type SessionRow = {
@@ -97,6 +100,7 @@ export type RoomSnapshot = {
       switchEndsAt: string | null;
       cycle: number;
       overdue: boolean;
+      handoffPoint: { lat: number; lng: number; updatedAt: string } | null;
     } | null;
   }>;
   meId: string;
@@ -143,6 +147,8 @@ export const LAST_EXIT_VISIBLE_MS = 60 * 1000;
 const PREARRANGED_SWITCH_MS = 10 * 1000;
 const HITCHHIKE_MIN_MS = 25 * 1000;
 const HITCHHIKE_MAX_MS = 45 * 1000;
+const HANDOFF_AVAILABLE_MS = 60 * 1000;
+const HANDOFF_DISTANCE_METERS = 75;
 const ZONE_INTERVAL_MS = 15 * 60 * 1000;
 const POSITION_JITTER_METERS = 15;
 const MIN_POSITION_INTERVAL_MS = 700;
@@ -598,7 +604,8 @@ export async function startRoom(
            vehicle_started_at = CASE WHEN role = 'runner' THEN ? ELSE NULL END,
            switch_ends_at = NULL, vehicle_cycle = 0,
            vehicle_state = CASE WHEN role = 'runner' THEN 'driving' ELSE 'dismounted' END,
-           switch_kind = NULL, last_exit_lat = NULL, last_exit_lng = NULL, last_exit_at = NULL
+           switch_kind = NULL, last_exit_lat = NULL, last_exit_lng = NULL, last_exit_at = NULL,
+           handoff_lat = NULL, handoff_lng = NULL, handoff_selected_at = NULL
        WHERE id = ? AND room_code = ? AND left_at IS NULL`,
     ).bind(start.lat, start.lng, now, now, now, player.id, session.roomCode);
   });
@@ -678,7 +685,9 @@ export async function syncRoomGame(
   const completedSwitches = await database.prepare(
     `UPDATE room_players
      SET vehicle_state = 'driving', vehicle_started_at = switch_ends_at,
-         switch_ends_at = NULL, switch_kind = NULL, vehicle_cycle = vehicle_cycle + 1
+         position_updated_at = switch_ends_at,
+         switch_ends_at = NULL, switch_kind = NULL, vehicle_cycle = vehicle_cycle + 1,
+         handoff_lat = NULL, handoff_lng = NULL, handoff_selected_at = NULL
      WHERE room_code = ? AND left_at IS NULL AND role = 'runner' AND caught = 0
        AND vehicle_state = 'switching' AND switch_ends_at IS NOT NULL AND switch_ends_at <= ?`,
   ).bind(code, now).run();
@@ -761,6 +770,66 @@ export async function exitVehicle(
   await markRoomUpdated(database, session.roomCode, now);
 }
 
+export async function selectHandoffPoint(
+  database: D1Database,
+  session: SessionRow,
+  rawLat: unknown,
+  rawLng: unknown,
+  now = Date.now(),
+): Promise<void> {
+  const requested = validPosition(rawLat, rawLng);
+  await syncRoomGame(database, session.roomCode, now);
+  const player = await database.prepare(
+    `SELECT p.role, p.caught, p.vehicle_state, p.vehicle_started_at, r.status, r.started_at, r.city_id
+     FROM room_players p JOIN rooms r ON r.code = p.room_code
+     WHERE p.id = ? AND p.room_code = ? AND p.left_at IS NULL`,
+  ).bind(session.playerId, session.roomCode).first<{
+    role: PlayerRole;
+    caught: number;
+    vehicle_state: VehicleState;
+    vehicle_started_at: number | null;
+    status: RoomStatus;
+    started_at: number | null;
+    city_id: string;
+  }>();
+  if (!player || player.status !== "playing" || player.started_at === null) {
+    throw new ApiProblem(409, "GAME_NOT_RUNNING", "Átadási pont csak futó játékban jelölhető ki.");
+  }
+  if (player.role !== "runner" || player.caught || player.vehicle_state !== "driving" || player.vehicle_started_at === null) {
+    throw new ApiProblem(409, "HANDOFF_NOT_AVAILABLE", "Átadási pontot csak menet közben választhatsz.");
+  }
+  if (now < player.vehicle_started_at + VEHICLE_DURATION_MS - HANDOFF_AVAILABLE_MS) {
+    throw new ApiProblem(409, "HANDOFF_TOO_EARLY", "Az átadási pontok az autó utolsó 60 másodpercében használhatók.");
+  }
+  const zones = getCityZones(player.city_id);
+  const zoneIndex = Math.min(zones.length - 1, Math.floor(Math.max(0, now - player.started_at) / ZONE_INTERVAL_MS));
+  if (distanceMeters(requested, zones[zoneIndex]) > zones[zoneIndex].radius) {
+    throw new ApiProblem(409, "HANDOFF_OUTSIDE_ZONE", "Az átadási pontnak az aktív zónán belül kell lennie.");
+  }
+
+  let snapped = requested;
+  try {
+    const response = await fetch(
+      `https://router.project-osrm.org/nearest/v1/driving/${requested.lng},${requested.lat}?number=1`,
+      { signal: AbortSignal.timeout(8000) },
+    );
+    if (!response.ok) throw new Error("road");
+    const data = await response.json() as { code?: string; waypoints?: Array<{ distance?: number; location?: [number, number] }> };
+    const waypoint = data.code === "Ok" ? data.waypoints?.[0] : undefined;
+    if (!waypoint?.location || (waypoint.distance ?? Infinity) > 40) throw new Error("road");
+    snapped = validPosition(waypoint.location[1], waypoint.location[0]);
+  } catch {
+    throw new ApiProblem(503, "HANDOFF_ROAD_UNAVAILABLE", "Az átadási pont közúti ellenőrzése most nem sikerült. Próbálj másik pontot.");
+  }
+
+  await database.prepare(
+    `UPDATE room_players SET handoff_lat = ?, handoff_lng = ?, handoff_selected_at = ?
+     WHERE id = ? AND room_code = ? AND role = 'runner' AND caught = 0
+       AND vehicle_state = 'driving' AND vehicle_started_at = ?`,
+  ).bind(snapped.lat, snapped.lng, now, session.playerId, session.roomCode, player.vehicle_started_at).run();
+  await markRoomUpdated(database, session.roomCode, now);
+}
+
 export async function startVehicleSwitch(
   database: D1Database,
   session: SessionRow,
@@ -772,6 +841,21 @@ export async function startVehicleSwitch(
   const randomRange = HITCHHIKE_MAX_MS - HITCHHIKE_MIN_MS + 1;
   const hitchhikeDelay = HITCHHIKE_MIN_MS + crypto.getRandomValues(new Uint32Array(1))[0] % randomRange;
   const switchEndsAt = now + (kind === "prearranged" ? PREARRANGED_SWITCH_MS : hitchhikeDelay);
+  if (kind === "prearranged") {
+    const handoff = await database.prepare(
+      `SELECT lat, lng, handoff_lat, handoff_lng, handoff_selected_at, vehicle_started_at
+       FROM room_players WHERE id = ? AND room_code = ? AND left_at IS NULL`,
+    ).bind(session.playerId, session.roomCode).first<{
+      lat: number | null; lng: number | null; handoff_lat: number | null; handoff_lng: number | null;
+      handoff_selected_at: number | null; vehicle_started_at: number | null;
+    }>();
+    if (!handoff || handoff.lat === null || handoff.lng === null || handoff.handoff_lat === null || handoff.handoff_lng === null || handoff.handoff_selected_at === null) {
+      throw new ApiProblem(409, "HANDOFF_REQUIRED", "Előbb válassz egy átadási pontot az utolsó 60 másodpercben.");
+    }
+    if (distanceMeters({ lat: handoff.lat, lng: handoff.lng }, { lat: handoff.handoff_lat, lng: handoff.handoff_lng }) > HANDOFF_DISTANCE_METERS) {
+      throw new ApiProblem(409, "HANDOFF_TOO_FAR", "Az egyeztetett autó átvételéhez 75 méteren belül kell lenned.");
+    }
+  }
   const result = await database.prepare(
     `UPDATE room_players
      SET vehicle_state = 'switching', switch_kind = ?, switch_ends_at = ?, last_seen_at = ?
@@ -923,7 +1007,8 @@ export async function getRoomSnapshot(
       `SELECT id, nickname, role, ready, caught, joined_at, last_seen_at,
               lat, lng, signal_lat, signal_lng, position_updated_at,
               vehicle_started_at, switch_ends_at, vehicle_cycle, vehicle_state, switch_kind,
-              last_exit_lat, last_exit_lng, last_exit_at
+              last_exit_lat, last_exit_lng, last_exit_at,
+              handoff_lat, handoff_lng, handoff_selected_at
        FROM room_players
        WHERE room_code = ? AND left_at IS NULL
        ORDER BY joined_at ASC, id ASC`,
@@ -1008,6 +1093,9 @@ export async function getRoomSnapshot(
           switchEndsAt: player.switch_ends_at === null ? null : new Date(player.switch_ends_at).toISOString(),
           cycle: player.vehicle_cycle,
           overdue: vehicleOverdue,
+          handoffPoint: player.handoff_lat === null || player.handoff_lng === null || player.handoff_selected_at === null
+            ? null
+            : { lat: player.handoff_lat, lng: player.handoff_lng, updatedAt: new Date(player.handoff_selected_at).toISOString() },
         }
       : null,
     };
