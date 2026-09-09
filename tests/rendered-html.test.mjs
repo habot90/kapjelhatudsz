@@ -110,8 +110,11 @@ test("keeps the online map, protected positions and timed signals wired together
   assert.match(roomApi, /MOVEMENT_TOO_FAST/);
   assert.match(roomApi, /VEHICLE_DURATION_MS = 5 \* 60 \* 1000/);
   assert.match(roomApi, /VEHICLE_IMMOBILE/);
+  assert.match(roomApi, /HANDOFF_TOO_FAR/);
+  assert.match(roomApi, /position_updated_at = switch_ends_at/);
   assert.match(game, /KISZÁLLOK/);
   assert.match(game, /STOPPOLOK/);
+  assert.match(game, /action: "select_handoff"/);
   assert.match(migration, /position_updated_at/);
   assert.match(migration, /revision/);
 });
