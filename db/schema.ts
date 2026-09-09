@@ -53,6 +53,9 @@ export const roomPlayers = sqliteTable(
     lastExitLat: real("last_exit_lat"),
     lastExitLng: real("last_exit_lng"),
     lastExitAt: integer("last_exit_at"),
+    handoffLat: real("handoff_lat"),
+    handoffLng: real("handoff_lng"),
+    handoffSelectedAt: integer("handoff_selected_at"),
   },
   (table) => [
     uniqueIndex("idx_room_players_token_hash").on(table.tokenHash),
