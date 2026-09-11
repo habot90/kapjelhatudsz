@@ -19,6 +19,19 @@
 - A térképre kattintva szabad nézetben is kijelölhető új közúti célpont.
 - A beírható, pontos címkereső a civil bejelentések fejlesztésével együtt kerül be; a szabad nézet addig is lehetővé teszi a térképen történő kézi keresést és tervezést.
 
+## Gyakorló hajsza
+
+**Rögzítve:** 2026. szeptember 11.
+
+- A gyakorlás indítása előtt országot, várost és szerepet kell választani.
+- Magyarországon Budapest, Romániában a közös játékban elérhető városok használhatók.
+- A kiválasztott város határozza meg a teljes gyakorlás térképét, zónáit és ellenőrzött közúti kezdőpontjait.
+- **Üldöző vagyok** módban a játékos vezeti az üldözőt, a menekülőket a gép irányítja.
+- **Menekülő vagyok** módban a játékos vezeti a menekülőt, az üldözőt a gép irányítja.
+- A játékos és a gépi ellenfél is közúti útvonalakon halad.
+- Az 50 méteres elfogási szabály mindkét szerepben érvényes.
+- Másik város vagy szerep választásához új gyakorlást kell indítani.
+
 ## Autóváltás
 
 **Állapot:** jóváhagyott terv, még nincs leprogramozva  
@@ -184,3 +197,4 @@ Az alábbi ötleteket Boti megőrzésre elfogadta. Ezek még nem végleges ját�
 6. Menekülők közötti segítség és részletes pontozás.
 
 Az első nagy taktikai csomag ajánlott összeállítása: **célpontok + autóváltás + haladási irányt mutató helyzetjel**.
+
