@@ -1710,3 +1710,141 @@ button:focus-visible {
     animation: none !important;
   }
 }
+
+.practice-setup-page {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(54, 191, 250, .15), transparent 32%),
+    radial-gradient(circle at 90% 85%, rgba(255, 122, 56, .12), transparent 34%),
+    #071012;
+}
+
+.practice-setup {
+  width: min(760px, 100%);
+  padding: clamp(22px, 4vw, 38px);
+  border: 1px solid rgba(94, 219, 255, .28);
+}
+
+.practice-setup h1 {
+  margin: 10px 0 8px;
+  font-size: clamp(30px, 6vw, 54px);
+  line-height: .98;
+}
+
+.practice-setup > p {
+  margin: 0 0 26px;
+  color: #9eb0b4;
+}
+
+.practice-back {
+  border: 0;
+  padding: 0 0 20px;
+  color: #74d8ff;
+  background: transparent;
+  font: inherit;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.practice-setup fieldset {
+  margin: 0 0 18px;
+  padding: 0;
+  border: 0;
+}
+
+.practice-setup legend {
+  margin-bottom: 9px;
+  color: #7f9498;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .15em;
+}
+
+.practice-choice-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.practice-choice-grid.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.practice-choice-grid button,
+.practice-city-select {
+  min-height: 78px;
+  border: 1px solid rgba(150, 183, 190, .22);
+  border-radius: 12px;
+  color: #eaf7fa;
+  background: rgba(5, 17, 20, .86);
+}
+
+.practice-choice-grid button {
+  display: grid;
+  gap: 6px;
+  align-content: center;
+  padding: 14px 16px;
+  text-align: left;
+}
+
+.practice-choice-grid button strong {
+  font-size: 15px;
+}
+
+.practice-choice-grid button small,
+.practice-city-select span {
+  color: #7f9498;
+}
+
+.practice-choice-grid button.selected {
+  border-color: #42c8ff;
+  box-shadow: inset 3px 0 #42c8ff, 0 0 22px rgba(54, 191, 250, .1);
+  background: rgba(18, 48, 57, .9);
+}
+
+.practice-choice-grid button.runner-choice.selected {
+  border-color: #ff8a45;
+  box-shadow: inset 3px 0 #ff8a45, 0 0 22px rgba(255, 122, 56, .1);
+}
+
+.practice-city-select {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.practice-city-select select {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid rgba(94, 219, 255, .3);
+  border-radius: 8px;
+  padding: 0 12px;
+  color: #eaf7fa;
+  background: #071316;
+  font: inherit;
+  font-weight: 700;
+}
+
+.practice-start {
+  width: 100%;
+  min-height: 58px;
+  margin-top: 6px;
+  border: 0;
+  border-radius: 10px;
+  color: #031014;
+  background: linear-gradient(135deg, #6bdcff, #2aaaf1);
+  font: inherit;
+  font-weight: 950;
+  letter-spacing: .08em;
+}
+
+@media (max-width: 560px) {
+  .practice-setup-page { padding: 12px; }
+  .practice-choice-grid.two { grid-template-columns: 1fr; }
+  .practice-city-select { grid-template-columns: 1fr; }
+}
+

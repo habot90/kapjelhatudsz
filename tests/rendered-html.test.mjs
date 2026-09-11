@@ -57,6 +57,29 @@ test("keeps the agreed chase rules wired into the simulation", async () => {
   assert.match(css, /@media\s*\(max-width:/);
 });
 
+test("offers every shared city and both roles in practice mode", async () => {
+  const [page, cities, starts, gameplay, css] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/multiplayer/cities.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/multiplayer/road-starts.ts", import.meta.url), "utf8"),
+    readFile(new URL("../JATEKMENET.md", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(page, /CITIES\.filter\(city=>cityCountry\(city\.id\)===country\)/);
+  assert.match(page, /VERIFIED_ROAD_STARTS\[city\.id\]/);
+  assert.match(page, /getCityZones\(city\.id\)/);
+  assert.match(page, /ÜLDÖZŐ VAGYOK/);
+  assert.match(page, /MENEKÜLŐ VAGYOK/);
+  assert.match(page, /playerRole==="runner"\?RUNNER_STARTS\.slice\(0,1\):RUNNER_STARTS/);
+  assert.match(page, /if\(playerRole==="runner"\)planHunter\(\)/);
+  assert.match(cities, /\{ id: "budapest", name: "Budapest"/);
+  assert.match(starts, /"budapest"/);
+  assert.match(gameplay, /## Gyakorló hajsza/);
+  assert.match(css, /\.practice-choice-grid\.two/);
+  assert.match(css, /@media \(max-width: 560px\)/);
+});
+
 test("keeps the shared lobby contract wired to durable room storage", async () => {
   const [hosting, schema, lobby, roomApi] = await Promise.all([
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
@@ -118,4 +141,5 @@ test("keeps the online map, protected positions and timed signals wired together
   assert.match(migration, /position_updated_at/);
   assert.match(migration, /revision/);
 });
+
 
