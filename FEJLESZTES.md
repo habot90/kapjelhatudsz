@@ -18,6 +18,15 @@ npm run lint
 
 Az npm test először buildet készít, majd a meglévő teszteket futtatja. A lint régebbi kód problémáit is jelezheti. A helyi D1 emulációt a vite.config.ts állítja be, az adatok a figyelmen kívül hagyott .wrangler mappában maradnak. Éles adatbázis nincs a tárban.
 
+## Helyi adatbázis-migrációk
+
+Az `npm run dev` indítás előtt automatikusan lefut az `npm run db:migrate:local`, amely a `drizzle/` mappa migrációit alkalmazza a helyi Miniflare D1 adatbázisra (`.wrangler/state/`). Friss klónon enélkül a szobalétrehozás `no such table: rooms` hibával, a felületen „A játékszerver átmenetileg hibázik” üzenettel állna le.
+
+- A parancs külön is futtatható: `npm run db:migrate:local`. Idempotens, a már alkalmazott migrációkat kihagyja.
+- A `scripts/wrangler.local-d1.jsonc` kizárólag ehhez a helyi parancshoz kell; az élő Sites/Cloudflare környezet nem ebből kapja a kötéseit. A benne lévő `database_id` szándékosan egyezik a `vite.config.ts` helyettesítő azonosítójával, így ugyanazt a helyi adatbázisfájlt éri el, mint a dev szerver.
+- Új migráció után (`npm run db:generate`) elég újra elindítani a dev szervert.
+- Ha a helyi adatbázist tisztán akarod kezdeni, töröld a `.wrangler/state` mappát és indítsd újra a dev szervert.
+
 ## Fontos fájlok
 
 - app/page.tsx: belépőoldal és különálló gyakorló mód.
