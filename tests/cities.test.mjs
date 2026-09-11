@@ -102,3 +102,77 @@ for (const selectedCity of ["budapest", "arad"]) test(`${selectedCity}: city sur
   db.sqlite.prepare("UPDATE room_players SET lat = 44.4268, lng = 26.1025 WHERE id = ?").run(runner.session.playerId);
   assert.equal((await api.getRoomSnapshot(db, host.room.code, host.session.playerId)).players.find(p => !p.isHost).exposed, true);
 });
+
+test("server owns the five-minute vehicle cycle, exit trace and both switch modes", async (t) => {
+  const db = await database();
+  t.after(() => db.sqlite.close());
+  await api.ensureSchema(db);
+  const host = await api.createRoom(db, "Host", "hunter", "budapest");
+  const runner = await api.joinRoom(db, host.room.code, "Runner", "runner");
+  const hs = { ...host.session, isHost: true, role: "hunter" };
+  const rs = { ...runner.session, isHost: false, role: "runner" };
+  await api.setReady(db, hs, true, Date.now());
+  await api.setReady(db, rs, true, Date.now());
+  const originalFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
+  globalThis.fetch = async () => new Response("", { status: 503 });
+  await api.startRoom(db, hs, Date.now());
+
+  const initial = await api.getRoomSnapshot(db, host.room.code, rs.playerId);
+  const initialRunner = initial.players.find(p => p.id === rs.playerId);
+  const startedAt = Date.parse(initialRunner.vehicle.startedAt);
+  assert.equal(initialRunner.vehicle.state, "driving");
+  assert.equal(initialRunner.vehicle.overdue, false);
+  assert.equal(Date.parse(initialRunner.vehicle.expiresAt) - startedAt, 5 * 60 * 1000);
+
+  const overdueAt = startedAt + 5 * 60 * 1000 + 1;
+  const hunterOverdue = await api.getRoomSnapshot(db, host.room.code, hs.playerId, overdueAt);
+  const visibleRunner = hunterOverdue.players.find(p => p.id === rs.playerId);
+  assert.equal(visibleRunner.liveTracked, true);
+  assert.ok(visibleRunner.position);
+
+  await assert.rejects(
+    api.selectHandoffPoint(db, rs, initialRunner.position.lat, initialRunner.position.lng, startedAt + 3 * 60 * 1000),
+    error => error.code === "HANDOFF_TOO_EARLY",
+  );
+  globalThis.fetch = async () => Response.json({
+    code: "Ok",
+    waypoints: [{ distance: 0, location: [initialRunner.position.lng, initialRunner.position.lat] }],
+  });
+  await api.selectHandoffPoint(db, rs, initialRunner.position.lat, initialRunner.position.lng, overdueAt + 500);
+
+  await api.exitVehicle(db, rs, overdueAt + 1000);
+  const afterExit = await api.getRoomSnapshot(db, host.room.code, hs.playerId, overdueAt + 2000);
+  assert.ok(afterExit.players.find(p => p.id === rs.playerId).lastExitPosition);
+  await assert.rejects(
+    api.updatePlayerPosition(db, rs, initialRunner.position.lat + 0.00001, initialRunner.position.lng, overdueAt + 3000),
+    error => error.code === "VEHICLE_IMMOBILE",
+  );
+
+  const switchStartedAt = overdueAt + 4000;
+  await api.startVehicleSwitch(db, rs, "prearranged", switchStartedAt);
+  const switching = await api.getRoomSnapshot(db, host.room.code, rs.playerId, switchStartedAt);
+  assert.equal(switching.players.find(p => p.id === rs.playerId).vehicle.state, "switching");
+  assert.equal(Date.parse(switching.players.find(p => p.id === rs.playerId).vehicle.switchEndsAt) - switchStartedAt, 10_000);
+  const switched = await api.getRoomSnapshot(db, host.room.code, rs.playerId, switchStartedAt + 10_001);
+  assert.equal(switched.players.find(p => p.id === rs.playerId).vehicle.state, "driving");
+  assert.equal(switched.players.find(p => p.id === rs.playerId).vehicle.cycle, 1);
+  await assert.rejects(
+    api.updatePlayerPosition(db, rs, initialRunner.position.lat + 0.005, initialRunner.position.lng, switchStartedAt + 11_001),
+    error => error.code === "MOVEMENT_TOO_FAST",
+  );
+
+  await api.exitVehicle(db, rs, switchStartedAt + 11_000);
+  const hitchStartedAt = switchStartedAt + 12_000;
+  await api.startVehicleSwitch(db, rs, "hitchhike", hitchStartedAt);
+  const hitching = await api.getRoomSnapshot(db, host.room.code, rs.playerId, hitchStartedAt);
+  const hitchDelay = Date.parse(hitching.players.find(p => p.id === rs.playerId).vehicle.switchEndsAt) - hitchStartedAt;
+  assert.ok(hitchDelay >= 25_000 && hitchDelay <= 45_000);
+
+  assert.equal((await api.getRoomSnapshot(db, host.room.code, hs.playerId, switchStartedAt + 71_001)).players.find(p => p.id === rs.playerId).lastExitPosition, null);
+  db.sqlite.prepare("UPDATE room_players SET lat = 44.4268, lng = 26.1025 WHERE id = ?").run(rs.playerId);
+  const outside = await api.getRoomSnapshot(db, host.room.code, hs.playerId, hitchStartedAt + 1000);
+  assert.equal(outside.players.find(p => p.id === rs.playerId).exposed, true);
+  assert.ok(outside.players.find(p => p.id === rs.playerId).position);
+});
+

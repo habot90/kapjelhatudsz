@@ -16,6 +16,38 @@
   background-size: auto, 34px 34px, 34px 34px, auto;
 }
 
+.vehiclePanel { border-color: rgba(255,138,69,.34); }
+.vehiclePanel .panelHead b { color: var(--orange); }
+.vehiclePanel .panelHead b i { background: currentColor; box-shadow: 0 0 9px currentColor; }
+.vehicleClock { margin: 12px 0 7px; color: #f4fbff; font: 950 clamp(30px,4vw,44px)/1 var(--font-geist-mono), monospace; letter-spacing: -.06em; }
+.vehiclePanel > p { margin: 0 0 12px; color: #91a7b1; font-size: 12px; line-height: 1.45; }
+.vehicle_warning { border-color: rgba(250,204,21,.68); box-shadow: inset 0 0 28px rgba(250,204,21,.05); }
+.vehicle_warning .vehicleClock,.vehicle_warning .panelHead b { color: #facc15; }
+.vehicle_danger,.vehicle_overdue { border-color: rgba(248,81,73,.75); box-shadow: inset 0 0 34px rgba(248,81,73,.08),0 0 24px rgba(248,81,73,.08); }
+.vehicle_danger .vehicleClock,.vehicle_overdue .vehicleClock,.vehicle_overdue .panelHead b { color: #ff665e; }
+.exitVehicleButton { width: 100%; min-height: 48px; border: 1px solid #ff665e; border-radius: 7px; color: white; background: linear-gradient(135deg,#9f2f2b,#dd433d); box-shadow: 0 8px 22px rgba(221,67,61,.2); font: 900 13px/1 var(--font-geist-mono),monospace; letter-spacing: .12em; cursor: pointer; }
+.exitVehicleButton:disabled,.switchButtons button:disabled { opacity: .55; cursor: wait; }
+.switchButtons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.switchButtons button { min-height: 58px; padding: 9px; display: grid; place-items: center; gap: 4px; border: 1px solid rgba(255,138,69,.5); border-radius: 7px; color: #f5fbff; background: rgba(255,138,69,.09); cursor: pointer; }
+.switchButtons button:last-child { border-color: rgba(53,189,246,.45); background: rgba(53,189,246,.08); }
+.switchButtons strong { font: 900 10px/1.2 var(--font-geist-mono),monospace; letter-spacing: .06em; }
+.switchButtons small { color: #8fa4ae; font: 750 9px/1 var(--font-geist-mono),monospace; }
+.switchProgress { height: 5px; overflow: hidden; border-radius: 5px; background: #1c3039; }
+.switchProgress i { display: block; height: 100%; background: linear-gradient(90deg,var(--orange),#ffd067); transition: width 1s linear; }
+.handoffChoices { margin: 0 0 10px; padding: 9px; display: grid; gap: 7px; border: 1px solid rgba(255,138,69,.28); border-radius: 7px; background: rgba(5,12,16,.55); }
+.handoffChoices > small { color: #ffb17d; font: 800 9px/1 var(--font-geist-mono),monospace; letter-spacing: .12em; }
+.handoffChoices > p { margin: 0; color: #8299a4; font-size: 11px; }
+.handoffChoices > div { display: grid; grid-template-columns: repeat(3,1fr); gap: 6px; }
+.handoffChoices button { min-height: 42px; display: grid; place-items: center; gap: 2px; border: 1px solid #304650; border-radius: 6px; color: #eef8fc; background: #102028; font: 900 13px/1 var(--font-geist-mono),monospace; cursor: pointer; }
+.handoffChoices button span { color: #86a0ac; font-size: 9px; }
+.handoffChoices button.handoffSelected { color: #071116; border-color: var(--green); background: var(--green); box-shadow: 0 0 16px rgba(67,220,141,.2); }
+.handoffChoices button.handoffSelected span { color: #173d2b; }
+
+@media (max-width: 700px) {
+  .vehicleClock { font-size: 32px; }
+  .switchButtons button { min-height: 54px; }
+}
+
 .role_runner { --active-role: var(--orange); }
 .role_hunter { --active-role: var(--cyan); }
 .close_none { --close-glow: transparent; }
@@ -343,6 +375,8 @@
 :global(.online-token-wrap b) { position: absolute; top: 44px; left: 50%; padding: 3px 6px; color: white; border-radius: 4px; background: rgba(4,10,14,.86); font: 850 8px/1 sans-serif; transform: translateX(-50%); }
 :global(.online-signal-wrap) { background: transparent; border: 0; }
 :global(.online-signal-wrap span) { display: grid; width: 32px; height: 32px; place-items: center; color: #061219; border: 2px solid white; border-radius: 50%; background: #ff8a45; box-shadow: 0 0 0 8px rgba(255,138,69,.16), 0 4px 20px rgba(0,0,0,.5); font: 900 11px/1 sans-serif; }
+:global(.online-exit-wrap) { background: transparent; border: 0; }
+:global(.online-exit-wrap span) { display: grid; width: 34px; height: 34px; place-items: center; color: #d9e2e6; border: 2px solid #8798a0; border-radius: 8px; background: rgba(24,35,40,.9); box-shadow: 0 0 0 7px rgba(135,152,160,.14), 0 4px 18px rgba(0,0,0,.55); font: 900 18px/1 sans-serif; }
 :global(.online-signal-wrap i) { position: absolute; inset: -7px; border: 1px solid rgba(255,138,69,.55); border-radius: 50%; animation: pingRing 1.9s ease-out infinite; }
 :global(.online-exposed-wrap) { background: transparent; border: 0; }
 :global(.online-exposed-wrap span) { display: grid; width: 34px; height: 34px; place-items: center; color: white; border: 2px solid white; border-radius: 8px; background: #ff4d64; box-shadow: 0 0 0 7px rgba(255,77,100,.18), 0 4px 20px rgba(0,0,0,.55); font: 950 17px/1 sans-serif; }
@@ -441,3 +475,4 @@
   :global(.online-signal-wrap i),
   :global(.online-exposed-wrap i) { animation: none; }
 }
+

@@ -22,6 +22,20 @@
       "when": 1788805734199,
       "tag": "0002_jittery_midnight",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1788916830491,
+      "tag": "0003_rich_maelstrom",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1788953264325,
+      "tag": "0004_equal_molecule_man",
+      "breakpoints": true
     }
   ]
 }

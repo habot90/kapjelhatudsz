@@ -13,6 +13,10 @@ const eslintConfig = defineConfig([
     "dist/**",
     "out/**",
     "build/**",
+    "work/**",
+    "outputs/**",
+    ".wrangler/**",
+    ".vinext/**",
     "next-env.d.ts",
   ]),
   eslint.configs.recommended,
@@ -39,3 +43,4 @@ const eslintConfig = defineConfig([
 ]);
 
 export default eslintConfig;
+
