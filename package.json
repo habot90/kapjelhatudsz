@@ -11,7 +11,9 @@
     "start": "vinext start",
     "test": "npm run build && node --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local --persist-to .wrangler/state -c scripts/wrangler.local-d1.jsonc",
+    "predev": "npm run db:migrate:local"
   },
   "dependencies": {
     "@types/leaflet": "^1.9.22",
