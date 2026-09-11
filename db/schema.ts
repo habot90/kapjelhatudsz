@@ -20,6 +20,8 @@ export const rooms = sqliteTable("rooms", {
   updatedAt: integer("updated_at").notNull(),
   revision: integer("revision").notNull().default(0),
   signalIndex: integer("signal_index").notNull().default(0),
+  civilianIndex: integer("civilian_index").notNull().default(0),
+  nextCivilianAt: integer("next_civilian_at"),
   captureGoal: integer("capture_goal").notNull().default(1),
 });
 
@@ -43,6 +45,10 @@ export const roomPlayers = sqliteTable(
     lng: real("lng"),
     signalLat: real("signal_lat"),
     signalLng: real("signal_lng"),
+    civilianLat: real("civilian_lat"),
+    civilianLng: real("civilian_lng"),
+    civilianAccuracy: text("civilian_accuracy", { enum: ["confirmed", "uncertain", "misleading"] }),
+    civilianReportedAt: integer("civilian_reported_at"),
     vehicleStartedAt: integer("vehicle_started_at"),
     switchEndsAt: integer("switch_ends_at"),
     vehicleCycle: integer("vehicle_cycle").notNull().default(0),
@@ -66,4 +72,5 @@ export const roomPlayers = sqliteTable(
       .where(sql`${table.role} = 'hunter' AND ${table.leftAt} IS NULL`),
   ],
 );
+
 

@@ -45,7 +45,7 @@ test("keeps the agreed chase rules wired into the simulation", async () => {
 
   assert.match(page, /const GAME_SECONDS = 120 \* 60/);
   assert.match(page, /const ZONE_SECONDS = 15 \* 60/);
-  assert.match(page, /const SIGNAL_SECONDS = 6 \* 60/);
+  assert.match(page, /const SIGNAL_SECONDS = 10 \* 60/);
   assert.match(page, /const CAR_SECONDS = 5 \* 60/);
   assert.match(page, /router\.project-osrm\.org\/route\/v1\/driving/);
   assert.match(page, /nearestDistance<=300/);
@@ -100,12 +100,13 @@ test("keeps the shared lobby contract wired to durable room storage", async () =
 });
 
 test("keeps the online map, protected positions and timed signals wired together", async () => {
-  const [game, gameCss, globalCss, roomApi, migration] = await Promise.all([
+  const [game, gameCss, globalCss, roomApi, migration, civilianMigration] = await Promise.all([
     readFile(new URL("../app/multiplayer/MultiplayerGame.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/multiplayer/MultiplayerGame.module.css", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/api/rooms/shared.ts", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0001_hesitant_bulldozer.sql", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0005_handy_sharon_carter.sql", import.meta.url), "utf8"),
   ]);
 
   assert.match(game, /router\.project-osrm\.org\/route\/v1\/driving/);
@@ -124,12 +125,18 @@ test("keeps the online map, protected positions and timed signals wired together
   assert.match(gameCss, /\.followButton/);
   assert.match(gameCss, /@media \(max-width: 700px\), \(pointer: coarse\)[\s\S]*\.mapGrid \{ display: none; \}/);
   assert.match(globalCss, /@media \(max-width: 700px\), \(pointer: coarse\)[\s\S]*\.leaflet-tile-pane[\s\S]*filter: none/);
-  assert.match(roomApi, /SIGNAL_INTERVAL_MS = 6 \* 60 \* 1000/);
+  assert.match(roomApi, /SIGNAL_INTERVAL_MS = 10 \* 60 \* 1000/);
+  assert.match(roomApi, /CIVILIAN_REPORT_MIN_MS = 30 \* 1000/);
+  assert.match(roomApi, /CIVILIAN_REPORT_MAX_MS = 60 \* 1000/);
+  assert.match(roomApi, /nearestOpponentMeters: null/);
+  assert.match(game, /CIVIL BEJELENTÉS/);
+  assert.match(game, /TÁVOLSÁG REJTVE/);
+  assert.match(civilianMigration, /civilian_reported_at/);
   assert.match(roomApi, /CAPTURE_DISTANCE_METERS = 50/);
   assert.match(roomApi, /await syncRoomGame\(database, session\.roomCode, now\)[\s\S]*UPDATE room_players/);
   assert.match(roomApi, /const exactPositionVisible = player\.id === meId/);
   assert.match(roomApi, /me\?\.role === "hunter" && liveTracked/);
-  assert.match(roomApi, /me\?\.role === "hunter" && player\.role === "runner"/);
+  assert.match(roomApi, /player\.role !== me\.role/);
   assert.match(roomApi, /MOVEMENT_TOO_FAST/);
   assert.match(roomApi, /VEHICLE_DURATION_MS = 5 \* 60 \* 1000/);
   assert.match(roomApi, /VEHICLE_IMMOBILE/);

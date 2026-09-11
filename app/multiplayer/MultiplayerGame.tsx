@@ -10,7 +10,7 @@ import { GAME_BOUNDS, getCity, getCityZones } from "./cities";
 type LatLng = [number, number];
 type RouteState = { coords: LatLng[]; index: number };
 type HandoffCandidate = { point: LatLng; distance: number };
-type AlertState = { kind: "signal" | "capture" | "info"; title: string; detail: string } | null;
+type AlertState = { kind: "signal" | "civilian" | "capture" | "info"; title: string; detail: string } | null;
 
 const SESSION_KEY = "kapj-el-ha-tudsz.room-session.v1";
 const HUNTER_SPEED = 24;
@@ -99,6 +99,7 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
   const routeLineRef = useRef<Polyline | null>(null);
   const zoneLayersRef = useRef<Circle[]>([]);
   const signalMarkersRef = useRef(new Map<string, Marker>());
+  const civilianMarkersRef = useRef(new Map<string, Marker>());
   const exposedMarkersRef = useRef(new Map<string, Marker>());
   const lastExitMarkersRef = useRef(new Map<string, Marker>());
   const routeRef = useRef<RouteState>({ coords: [], index: 0 });
@@ -106,6 +107,7 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
   const routeAbortRef = useRef<AbortController | null>(null);
   const serverOffsetRef = useRef(0);
   const lastSignalIndexRef = useRef(initialRoom.game?.signalIndex ?? 0);
+  const lastCivilianIndexRef = useRef(initialRoom.game?.civilianReportIndex ?? 0);
   const lastCapturedCountRef = useRef(initialRoom.game?.capturedCount ?? 0);
   const lastSentPositionRef = useRef<LatLng | null>(null);
   const lastServerWriteAtRef = useRef(0);
@@ -158,12 +160,14 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
     const incomingSignal = next.game?.signalIndex ?? 0;
     if (incomingSignal > previousSignal) {
       lastSignalIndexRef.current = incomingSignal;
+      const incomingMe = next.players.find((player) => player.id === next.meId);
       setAlert({
         kind: "signal",
         title: "HELYZETJEL ÉRKEZETT",
-        detail: "A menekülők pillanatnyi helye rögzítve. A jelölők innen már nem mozognak.",
+        detail: incomingMe?.role === "hunter"
+          ? "A menekülők pillanatnyi helye rögzítve. A jelölők innen már nem mozognak."
+          : "Az üldöző pillanatnyi helye rögzítve. A jelölő innen már nem mozog.",
       });
-      const incomingMe = next.players.find((player) => player.id === next.meId);
       const signalPoints = next.players
         .filter((player) => player.signalPosition)
         .map((player) => [player.signalPosition!.lat, player.signalPosition!.lng] as LatLng);
@@ -180,6 +184,20 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
           });
         }
       }
+    }
+    const incomingCivilian = next.game?.civilianReportIndex ?? 0;
+    if (incomingCivilian > lastCivilianIndexRef.current) {
+      lastCivilianIndexRef.current = incomingCivilian;
+      const report = next.players.find((player) => player.civilianReport)?.civilianReport;
+      setAlert({
+        kind: "civilian",
+        title: "CIVIL BEJELENTÉS",
+        detail: report?.accuracy === "misleading"
+          ? "A bejelentés gyanús és akár félrevezető is lehet."
+          : report?.accuracy === "uncertain"
+            ? "A helyszín bizonytalan; kezeld keresési körzetként."
+            : "A bejelentő határozott helyszínt adott meg.",
+      });
     }
     const incomingCaptured = next.game?.capturedCount ?? 0;
     if (incomingCaptured > lastCapturedCountRef.current) {
@@ -261,9 +279,11 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
   const elapsedSeconds = Math.max(0, (clockNow - startedAtMs) / 1000);
   const gameDuration = room.game?.durationSeconds ?? 7200;
   const nextSignalAtMs = room.game?.nextSignalAt ? Date.parse(room.game.nextSignalAt) : null;
+  const nextCivilianAtMs = room.game?.nextCivilianReportAt ? Date.parse(room.game.nextCivilianReportAt) : null;
   const gameClock = {
     gameLeft: Math.max(0, gameDuration - elapsedSeconds),
     signalLeft: nextSignalAtMs === null ? 0 : Math.max(0, (nextSignalAtMs - clockNow) / 1000),
+    civilianLeft: nextCivilianAtMs === null ? 0 : Math.max(0, (nextCivilianAtMs - clockNow) / 1000),
     phase: Math.min(ZONES.length - 1, Math.floor(elapsedSeconds / ZONE_SECONDS)),
     zoneLeft: Math.max(0, ZONE_SECONDS - (elapsedSeconds % ZONE_SECONDS)),
   };
@@ -281,6 +301,7 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
     let handleMapControlClick: ((event: MouseEvent) => void) | null = null;
     let handleMapKeydown: ((event: KeyboardEvent) => void) | null = null;
     const signalMarkers = signalMarkersRef.current;
+    const civilianMarkers = civilianMarkersRef.current;
     const exposedMarkers = exposedMarkersRef.current;
     const lastExitMarkers = lastExitMarkersRef.current;
     void import("leaflet").then((L) => {
@@ -345,7 +366,7 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
       const markerRole = roomRef.current.players.find((player) => player.id === roomRef.current.meId)?.role ?? "runner";
       const selfIcon = L.divIcon({
         className: `online-token-wrap online-${markerRole}-wrap`,
-        html: `<span class="online-token">${markerRole === "hunter" ? "⌖" : "➤"}</span><b>TE</b>`,
+        html: `<span class="online-token">${markerRole === "hunter" ? "◎" : "◆"}</span><b>TE</b>`,
         iconSize: [58, 58],
         iconAnchor: [29, 29],
       });
@@ -416,6 +437,8 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
       routeAbortRef.current?.abort();
       signalMarkers.forEach((marker) => marker.remove());
       signalMarkers.clear();
+      civilianMarkers.forEach((marker) => marker.remove());
+      civilianMarkers.clear();
       exposedMarkers.forEach((marker) => marker.remove());
       exposedMarkers.clear();
       lastExitMarkers.forEach((marker) => marker.remove());
@@ -536,17 +559,45 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
         return;
       }
       const icon = L.divIcon({
-        className: "online-signal-wrap",
-        html: `<span>${index + 1}</span><i></i>`,
+        className: `online-signal-wrap online-signal-${player.role}`,
+        html: `<span>${player.role === "hunter" ? "◎" : index + 1}</span><i></i>`,
         iconSize: [42, 42],
         iconAnchor: [21, 21],
       });
       const marker = L.marker([position.lat, position.lng], { icon, zIndexOffset: 900 })
         .addTo(map)
-        .bindTooltip(`${player.nickname} · utolsó 6 perces jel`);
+        .bindTooltip(`${player.nickname} · utolsó 10 perces hivatalos jel`);
       signalMarkersRef.current.set(player.id, marker);
     });
   }, [mapReady, room.players, room.game?.signalIndex]);
+
+  useEffect(() => {
+    const L = leafletRef.current;
+    const map = mapRef.current;
+    if (!L || !map) return;
+    const reports = room.players.filter((player) => player.civilianReport);
+    civilianMarkersRef.current.forEach((marker) => marker.remove());
+    civilianMarkersRef.current.clear();
+    reports.forEach((player) => {
+      const report = player.civilianReport;
+      if (!report) return;
+      const icon = L.divIcon({
+        className: `online-civilian-wrap online-civilian-${report.accuracy}`,
+        html: `<span>☎</span><i></i>`,
+        iconSize: [46, 46],
+        iconAnchor: [23, 23],
+      });
+      const accuracy = report.accuracy === "confirmed"
+        ? "határozott"
+        : report.accuracy === "uncertain"
+          ? "bizonytalan"
+          : "gyanús";
+      const marker = L.marker([report.lat, report.lng], { icon, zIndexOffset: 875 })
+        .addTo(map)
+        .bindTooltip(`Civil bejelentés · ${accuracy} · ${player.role === "hunter" ? "üldöző" : "menekülő"}`);
+      civilianMarkersRef.current.set(player.id, marker);
+    });
+  }, [mapReady, room.players, room.game?.civilianReportIndex]);
 
   useEffect(() => {
     const L = leafletRef.current;
@@ -759,6 +810,32 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
   const vehicleLeft = vehicle?.expiresAt ? Math.max(0, (Date.parse(vehicle.expiresAt) - clockNow) / 1000) : 0;
   const switchLeft = vehicle?.switchEndsAt ? Math.max(0, (Date.parse(vehicle.switchEndsAt) - clockNow) / 1000) : 0;
   const vehicleWarning = vehicle?.overdue ? "overdue" : vehicleLeft <= 10 ? "danger" : vehicleLeft <= 30 ? "warning" : "normal";
+  const civilianTarget = room.players.find((player) => player.civilianReport) ?? null;
+  const civilianReport = civilianTarget?.civilianReport ?? null;
+  const officialSignals = room.players.filter((player) => player.signalPosition);
+  const focusPoints = (points: LatLng[], maxZoom = 15) => {
+    const map = mapRef.current;
+    if (!map || !points.length) return;
+    pauseCameraFollowing();
+    if (points.length === 1) map.setView(points[0], maxZoom, { animate: !mobileMapModeRef.current });
+    else map.fitBounds(points, { padding: [55, 55], maxZoom, animate: !mobileMapModeRef.current });
+  };
+  const focusCivilianReport = () => {
+    if (!civilianReport) {
+      setAlert({ kind: "info", title: "NINCS FRISS BEJELENTÉS", detail: "A következő civil hívás 30–60 másodpercen belül várható." });
+      return;
+    }
+    focusPoints([[civilianReport.lat, civilianReport.lng]], 16);
+  };
+  const focusOfficialSignal = () => {
+    const points = officialSignals.map((player) => [player.signalPosition!.lat, player.signalPosition!.lng] as LatLng);
+    if (!points.length) {
+      setAlert({ kind: "info", title: "NINCS HIVATALOS JEL", detail: "A pontos pillanatkép 10 percenként érkezik." });
+      return;
+    }
+    focusPoints(points, 14);
+  };
+  const focusActiveZone = () => focusPoints([activeZone.center], 13);
 
   return (
     <main className={`${styles.page} ${styles[`role_${role}`]} ${styles[`close_${closeLevel}`]}`}>
@@ -780,7 +857,7 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
 
         <div className={styles.layout}>
           <section className={styles.mapPanel}>
-            <div ref={mapNodeRef} className={styles.map} aria-label="Közös bukaresti hajszatérkép" />
+            <div ref={mapNodeRef} className={styles.map} aria-label={`${city.name} közös hajszatérképe`} />
             <div className={styles.mapGrid} aria-hidden="true" />
             <div className={styles.mapCorners} aria-hidden="true"><i /><i /><i /><i /></div>
 
@@ -797,14 +874,19 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
             </button>
 
             <div className={styles.roleCard}>
-              <span className={styles.roleGlyph}>{role === "hunter" ? "⌖" : "➤"}</span>
+              <span className={styles.roleGlyph}>{role === "hunter" ? "◎" : "◆"}</span>
               <span><small>A SZEREPED</small><strong>{roleLabel(role)}</strong></span>
             </div>
 
             <div className={styles.signalHud}>
               <span className={styles.signalPulse} />
-              <span><small>KÖVETKEZŐ HELYZETJEL</small><strong>{formatTime(gameClock.signalLeft)}</strong></span>
-              <div><i style={{ width: `${Math.max(0, Math.min(100, 100 - gameClock.signalLeft / (room.game?.signalEverySeconds ?? 360) * 100))}%` }} /></div>
+              <span><small>{role === "hunter" ? "MENEKÜLŐK HIVATALOS JELE" : "ÜLDÖZŐ HIVATALOS JELE"}</small><strong>{formatTime(gameClock.signalLeft)}</strong></span>
+              <div><i style={{ width: `${Math.max(0, Math.min(100, 100 - gameClock.signalLeft / (room.game?.signalEverySeconds ?? 600) * 100))}%` }} /></div>
+            </div>
+
+            <div className={styles.civilianHud}>
+              <span>☎</span>
+              <span><small>KÖVETKEZŐ CIVIL HÍVÁS</small><strong>{formatTime(gameClock.civilianLeft)}</strong></span>
             </div>
 
             {closeLevel !== "none" && (
@@ -816,7 +898,7 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
 
             {alert && (
               <div className={`${styles.eventAlert} ${styles[`event_${alert.kind}`]}`} role="status">
-                <span>{alert.kind === "signal" ? "⌁" : alert.kind === "capture" ? "⛓" : "!"}</span>
+                <span>{alert.kind === "signal" ? "⌁" : alert.kind === "civilian" ? "☎" : alert.kind === "capture" ? "⛓" : "!"}</span>
                 <div><strong>{alert.title}</strong><small>{alert.detail}</small></div>
               </div>
             )}
@@ -843,11 +925,24 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
           </section>
 
           <aside className={styles.sidebar}>
-            <section className={`${styles.panel} ${styles.proximityPanel} ${closeLevel !== "none" ? styles.panelDanger : ""}`}>
-              <div className={styles.panelHead}><span>LEGKÖZELEBBI ELLENFÉL</span><b><i />SZERVER MÉRÉS</b></div>
-              <div className={styles.distance}>{nearest === null || nearest === undefined ? "—" : nearest.toLocaleString("hu-HU")}<small>M</small></div>
-              <p>Csak a távolság látható. Az ellenfél pontos iránya és élő koordinátája rejtve marad.</p>
-              <div className={styles.range}><span>300 M · KÖZELÍTÉS</span><i /><span>50 M · BILINCS</span></div>
+            <section className={`${styles.panel} ${styles.operationsPanel} ${role === "hunter" ? styles.hunterOperations : styles.runnerOperations}`}>
+              <div className={styles.panelHead}>
+                <span>{role === "hunter" ? "ÜLDÖZŐI PARANCSKÖZPONT" : "MENEKÜLÉSI TERV"}</span>
+                <b><i />TÁVOLSÁG REJTVE</b>
+              </div>
+              <div className={styles.intelStatus}>
+                <span>{civilianReport ? "☎" : "…"}</span>
+                <p>
+                  <strong>{civilianReport ? `CIVIL JELENTÉS · ${civilianReport.accuracy === "confirmed" ? "HATÁROZOTT" : civilianReport.accuracy === "uncertain" ? "BIZONYTALAN" : "GYANÚS"}` : "NINCS AKTÍV CIVIL JELENTÉS"}</strong>
+                  <small>{civilianTarget ? `${civilianTarget.role === "hunter" ? "Az üldözőt" : "Egy menekülőt"} látták ezen a környéken. A hívás lehet pontatlan vagy hamis.` : "Új bejelentés 30–60 másodpercenként érkezhet."}</small>
+                </p>
+              </div>
+              <div className={styles.strategyButtons}>
+                <button type="button" onClick={focusCivilianReport}><span>☎</span><strong>{role === "hunter" ? "CIVIL NYOM" : "VESZÉLYJEL"}</strong><small>TÉRKÉPEN</small></button>
+                <button type="button" onClick={focusOfficialSignal}><span>⌁</span><strong>HIVATALOS JEL</strong><small>10 PERCES</small></button>
+                <button type="button" onClick={focusActiveZone}><span>▱</span><strong>{role === "hunter" ? "KERESÉSI ZÓNA" : "MENEKÜLÉSI ZÓNA"}</strong><small>AKTÍV</small></button>
+              </div>
+              <p className={styles.captureRule}>Az ellenfél távolsága és iránya rejtett. 50 méteren belül az elfogás automatikus.</p>
             </section>
 
             <section className={styles.stats}>
@@ -912,8 +1007,8 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
             <section className={`${styles.panel} ${styles.signalPanel}`}>
               <div className={styles.panelHead}><span>HELYZETJEL</span><b><i />#{room.game?.signalIndex ?? 0}</b></div>
               <div className={styles.signalRule}>
-                <span>06</span>
-                <p><strong>PERCENKÉNT PILLANATKÉP</strong><small>{role === "hunter" ? "A menekülők jelölője megjelenik, majd a következő jelig ott marad." : "A pontos helyed elküldésre kerül; utána szabadon változtathatsz irányt."}</small></p>
+                <span>10</span>
+                <p><strong>10 PERCENKÉNTI PILLANATKÉP</strong><small>{role === "hunter" ? "A menekülők jelölője megjelenik, majd a következő jelig ott marad." : "Az üldöző jelölője megjelenik, majd a következő jelig ott marad."}</small></p>
               </div>
             </section>
 
@@ -935,4 +1030,5 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
     </main>
   );
 }
+
 

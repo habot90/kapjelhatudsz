@@ -98,11 +98,11 @@
 - Ha a menekülő a zónán kívül van, a kiszállás nem rejti el: továbbra is élőben látható marad a zónabüntetés miatt.
 - A pontos hely csak akkor rejtőzik el újra, ha nincs túlidős autóban, és az aktív zónán belül tartózkodik.
 
-### Kapcsolat a 6 perces helyzetjellel
+### Kapcsolat a 10 perces helyzetjellel
 
-- A globális helyzetjel továbbra is 6 percenként készít befagyasztott pillanatképet.
+- A globális helyzetjel továbbra is 10 percenként készít befagyasztott pillanatképet.
 - Az autó ötperces ideje és a helyzetjel időzítése egymástól független.
-- Tipikus taktika: autóváltás az ötödik perc körül, kereszteződés választása, a hatodik perces jel megvárása, majd irányváltás.
+- Tipikus taktika: autóváltás az ötödik perc körül, kereszteződés választása, a tizedik perces jel megvárása, majd irányváltás.
 - Ha a menekülő a jel pillanatában túlidős autóban van, az élő követés mellett a szabályos, befagyasztott helyzetjel is létrejön.
 
 ### Felületi elemek
@@ -133,7 +133,17 @@
 - Működik a 25–45 másodperces stoppolás.
 - Az új autó helyesen újraindítja az ötperces ciklust.
 - A zónán kívüli láthatóság elsőbbséget élvez a kiszállással szemben.
-- A 6 perces helyzetjel és az 50 méteres elfogás változatlanul működik.
+- A 10 perces helyzetjel és az 50 méteres elfogás változatlanul működik.
+
+## Aszimmetrikus információ és civil jelentések (2026. szeptember 12-i döntés)
+
+- Az üldöző és a menekülő sem látja folyamatosan az ellenfél pontos távolságát vagy irányát.
+- Mindkét oldal 10 percenként kap hivatalos, pontos pillanatképet az ellenfél helyéről. A jelölő a következő jelig a rögzített ponton marad, nem követi élőben az ellenfelet.
+- Civil bejelentés mindkét oldalnak véletlenszerűen 30–60 másodpercenként érkezik.
+- A civil jelentés lehet határozott, bizonytalan vagy félrevezető. A térképen a megbízhatósághoz igazodó keresési körzet jelenik meg.
+- Az üldöző a menekülők civil nyomait, a menekülő az üldözőről érkező veszélyjelzéseket kapja.
+- A két szerep külön ikont és külön stratégiai panelt használ. Az üldözői felület a keresést, a menekülői felület a menekülési útvonalat és az autóváltást emeli ki.
+- Az 50 méteres elfogást továbbra is a szerver dönti el automatikusan; ehhez nem kell előzetesen megmutatni a pontos távolságot.
 
 ## Jövőbeli játékmeneti ötletek (2026-09-08)
 
@@ -153,7 +163,7 @@ Az alábbi ötleteket Boti megőrzésre elfogadta. Ezek még nem végleges ját�
 
 ### 3. Haladási irányt mutató helyzetjel
 
-- A 6 perces helyzetjel a befagyasztott pont mellett a jel pillanatában mért haladási irányt is mutathatja.
+- A 10 perces helyzetjel a befagyasztott pont mellett a jel pillanatában mért haladási irányt is mutathatja.
 - A menekülő kereszteződésnél kivárhatja a jeladást, majd irányt válthat vagy autót cserélhet.
 
 ### 4. Üldözői útlezárás
@@ -163,6 +173,7 @@ Az alábbi ötleteket Boti megőrzésre elfogadta. Ezek még nem végleges ját�
 
 ### 5. Civil bejelentések
 
+- A 30–60 másodperces alapritmus és a kétoldalú jelentés a 2026. szeptember 12-i döntéssel elfogadott alapszabály; az alábbi pontok ennek későbbi bővítései.
 - A bejelentések eltérő pontosságúak és megbízhatóságúak lehetnek: biztos, bizonytalan vagy akár hamis.
 - Az üldöző és a menekülők is kaphatnak jelentéseket, de azok száma és gyakorisága korlátozott.
 - A jelölés pont helyett pontosságtól függő méretű terület is lehet.
