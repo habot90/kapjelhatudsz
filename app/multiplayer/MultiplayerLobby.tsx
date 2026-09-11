@@ -336,7 +336,7 @@ function EntryScreen({
                   <select className={styles.citySelect} value={cityId} onChange={(event) => onCityChange(event.target.value)} disabled={busy}>
                     {CITIES.filter((city) => cityCountry(city.id) === cityCountry(cityId)).map((city) => <option key={city.id} value={city.id}>{city.name}</option>)}
                   </select>
-                  <small>Egy város, 8 zóna. Minden játékos itt indul. A gyakorló mód továbbra is Bukarestben játszódik.</small>
+                  <small>Egy város, 8 zóna. Minden játékos itt indul. A gyakorló módhoz külön is választhatsz pályát.</small>
                 </label>
               )}
               {mode === "join" && (
@@ -1088,3 +1088,4 @@ export default function MultiplayerLobby({ onPractice, onEnterGame }: Multiplaye
     />
   );
 }
+
