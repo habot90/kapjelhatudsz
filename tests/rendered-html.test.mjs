@@ -45,7 +45,8 @@ test("keeps the agreed chase rules wired into the simulation", async () => {
 
   assert.match(page, /const GAME_SECONDS = 120 \* 60/);
   assert.match(page, /const ZONE_SECONDS = 15 \* 60/);
-  assert.match(page, /const SIGNAL_SECONDS = 10 \* 60/);
+  assert.match(page, /const RUNNER_SIGNAL_SECONDS = 2\.5 \* 60/);
+  assert.match(page, /const HUNTER_SIGNAL_SECONDS = 10 \* 60/);
   assert.match(page, /const CAR_SECONDS = 5 \* 60/);
   assert.match(page, /router\.project-osrm\.org\/route\/v1\/driving/);
   assert.match(page, /nearestDistance<=300/);
@@ -127,7 +128,11 @@ test("keeps the online map, protected positions and timed signals wired together
   assert.match(gameCss, /\.followButton/);
   assert.match(gameCss, /@media \(max-width: 700px\), \(pointer: coarse\)[\s\S]*\.mapGrid \{ display: none; \}/);
   assert.match(globalCss, /@media \(max-width: 700px\), \(pointer: coarse\)[\s\S]*\.leaflet-tile-pane[\s\S]*filter: none/);
-  assert.match(roomApi, /SIGNAL_INTERVAL_MS = 10 \* 60 \* 1000/);
+  assert.match(roomApi, /RUNNER_SIGNAL_INTERVAL_MS = 2\.5 \* 60 \* 1000/);
+  assert.match(roomApi, /HUNTER_SIGNAL_INTERVAL_MS = 10 \* 60 \* 1000/);
+  assert.match(roomApi, /role = 'runner'/);
+  assert.match(roomApi, /role = 'hunter'/);
+  assert.match(game, /opponentSignalIndex/);
   assert.match(roomApi, /CIVILIAN_REPORT_MIN_MS = 30 \* 1000/);
   assert.match(roomApi, /CIVILIAN_REPORT_MAX_MS = 60 \* 1000/);
   assert.match(roomApi, /nearestOpponentMeters: null/);

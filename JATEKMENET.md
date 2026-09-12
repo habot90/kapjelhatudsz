@@ -98,9 +98,10 @@
 - Ha a menekülő a zónán kívül van, a kiszállás nem rejti el: továbbra is élőben látható marad a zónabüntetés miatt.
 - A pontos hely csak akkor rejtőzik el újra, ha nincs túlidős autóban, és az aktív zónán belül tartózkodik.
 
-### Kapcsolat a 10 perces helyzetjellel
+### Kapcsolat a szerepenkénti helyzetjellel
 
-- A globális helyzetjel továbbra is 10 percenként készít befagyasztott pillanatképet.
+- A menekülők helyzetéről 2 perc 30 másodpercenként készül befagyasztott pillanatkép az üldözőnek.
+- Az üldöző helyzetéről 10 percenként készül befagyasztott pillanatkép a menekülőknek.
 - Az autó ötperces ideje és a helyzetjel időzítése egymástól független.
 - Tipikus taktika: autóváltás az ötödik perc körül, kereszteződés választása, a tizedik perces jel megvárása, majd irányváltás.
 - Ha a menekülő a jel pillanatában túlidős autóban van, az élő követés mellett a szabályos, befagyasztott helyzetjel is létrejön.
@@ -133,12 +134,12 @@
 - Működik a 25–45 másodperces stoppolás.
 - Az új autó helyesen újraindítja az ötperces ciklust.
 - A zónán kívüli láthatóság elsőbbséget élvez a kiszállással szemben.
-- A 10 perces helyzetjel és az 50 méteres elfogás változatlanul működik.
+- A szerepenkénti helyzetjel és az 50 méteres elfogás változatlanul működik.
 
 ## Aszimmetrikus információ és civil jelentések (2026. szeptember 12-i döntés)
 
 - Az üldöző és a menekülő sem látja folyamatosan az ellenfél pontos távolságát vagy irányát.
-- Mindkét oldal 10 percenként kap hivatalos, pontos pillanatképet az ellenfél helyéről. A jelölő a következő jelig a rögzített ponton marad, nem követi élőben az ellenfelet.
+- Az üldöző 2 perc 30 másodpercenként kap hivatalos, pontos pillanatképet a menekülők helyéről. A menekülők 10 percenként kapnak ilyen pillanatképet az üldözőről. A jelölő a következő jelig a rögzített ponton marad, nem követi élőben az ellenfelet.
 - Civil bejelentés mindkét oldalnak véletlenszerűen 30–60 másodpercenként érkezik.
 - A civil bejelentés következő időpontja egyik félnek sem látható; a jelzés váratlanul jelenik meg.
 - A civil jelentés lehet határozott, bizonytalan vagy félrevezető. A térképen a megbízhatósághoz igazodó keresési körzet jelenik meg.
@@ -148,7 +149,7 @@
 
 ## Helyzetjel és menekülői kezelőfelület (2026. szeptember 12-i pontosítás)
 
-- A látható 10 perces visszaszámláló mindig azt mutatja, mikor küldi el a játék a saját pillanatnyi helyet az ellenfélnek.
+- A saját jel visszaszámlálója menekülőnél 2:30, üldözőnél 10:00 percről indul, és mindig azt mutatja, mikor küldi el a játék a saját pillanatnyi helyet az ellenfélnek.
 - Az ellenfél következő helyzetjelét nem kell külön előre jelezni; amikor megérkezik, hangos és vizuális értesítés jelenik meg, valamint létrejön a befagyasztott térképjel.
 - Gyakorló módban a gépi üldöző élő ikonja nem látható a menekülőnek. Csak a hivatalos pillanatkép és a civil veszélyjelzés mutathat róla helyet.
 - A menekülő autóideje és fő műveletei mindig könnyen elérhetők: **AUTÓ LERAKÁSA**, **KISZÁLLOK**, **EGYEZTETETT AUTÓBA ÜLÖK**, **STOPPOLOK**.

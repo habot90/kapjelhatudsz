@@ -103,6 +103,46 @@ for (const selectedCity of ["budapest", "arad"]) test(`${selectedCity}: city sur
   assert.equal((await api.getRoomSnapshot(db, host.room.code, host.session.playerId)).players.find(p => !p.isHost).exposed, true);
 });
 
+test("runner signals every 2:30 while hunter signals every 10:00 and car time stays 5:00", async (t) => {
+  const db = await database();
+  t.after(() => db.sqlite.close());
+  await api.ensureSchema(db);
+  const host = await api.createRoom(db, "Host", "hunter", "budapest");
+  const runner = await api.joinRoom(db, host.room.code, "Runner", "runner");
+  const hs = { ...host.session, isHost: true, role: "hunter" };
+  const rs = { ...runner.session, isHost: false, role: "runner" };
+  const startedAt = Date.now();
+  await api.setReady(db, hs, true, startedAt);
+  await api.setReady(db, rs, true, startedAt);
+  const originalFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
+  globalThis.fetch = async () => new Response("", { status: 503 });
+  await api.startRoom(db, hs, startedAt);
+
+  const runnerInitial = await api.getRoomSnapshot(db, host.room.code, rs.playerId, startedAt);
+  const hunterInitial = await api.getRoomSnapshot(db, host.room.code, hs.playerId, startedAt);
+  assert.equal(runnerInitial.game.signalEverySeconds, 150);
+  assert.equal(runnerInitial.game.opponentSignalEverySeconds, 600);
+  assert.equal(hunterInitial.game.signalEverySeconds, 600);
+  assert.equal(hunterInitial.game.opponentSignalEverySeconds, 150);
+  const runnerVehicle = runnerInitial.players.find(p => p.id === rs.playerId).vehicle;
+  assert.equal(Date.parse(runnerVehicle.expiresAt) - Date.parse(runnerVehicle.startedAt), 300_000);
+
+  const hunterAtFirstRunnerSignal = await api.getRoomSnapshot(db, host.room.code, hs.playerId, startedAt + 150_001);
+  assert.equal(hunterAtFirstRunnerSignal.game.signalIndex, 0);
+  assert.equal(hunterAtFirstRunnerSignal.game.opponentSignalIndex, 1);
+  assert.ok(hunterAtFirstRunnerSignal.players.find(p => p.id === rs.playerId).signalPosition);
+  const runnerBeforeHunterSignal = await api.getRoomSnapshot(db, host.room.code, rs.playerId, startedAt + 150_001);
+  assert.equal(runnerBeforeHunterSignal.game.signalIndex, 1);
+  assert.equal(runnerBeforeHunterSignal.game.opponentSignalIndex, 0);
+  assert.equal(runnerBeforeHunterSignal.players.find(p => p.id === hs.playerId).signalPosition, null);
+
+  const runnerAtTenMinutes = await api.getRoomSnapshot(db, host.room.code, rs.playerId, startedAt + 600_001);
+  assert.equal(runnerAtTenMinutes.game.signalIndex, 4);
+  assert.equal(runnerAtTenMinutes.game.opponentSignalIndex, 1);
+  assert.ok(runnerAtTenMinutes.players.find(p => p.id === hs.playerId).signalPosition);
+});
+
 test("server owns the five-minute vehicle cycle, exit trace and both switch modes", async (t) => {
   const db = await database();
   t.after(() => db.sqlite.close());
