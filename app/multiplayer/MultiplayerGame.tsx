@@ -14,6 +14,7 @@ type AlertState = { kind: "signal" | "civilian" | "capture" | "info"; title: str
 const SESSION_KEY = "kapj-el-ha-tudsz.room-session.v1";
 const HUNTER_SPEED = 24;
 const RUNNER_SPEED = 21;
+const WALKING_SPEED = 5 / 3.6;
 const ZONE_SECONDS = 15 * 60;
 
 export type MultiplayerGameProps = {
@@ -152,10 +153,10 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
     const map = mapRef.current;
     const position = localPositionRef.current;
     if (!map || !position) return;
-    const nearestDistance = roomRef.current.game?.nearestOpponentMeters;
+    const proximityLevel = roomRef.current.game?.proximityLevel ?? "none";
     let minimumZoom = mobileMapModeRef.current ? 16 : 14;
-    if (nearestDistance !== null && nearestDistance !== undefined && nearestDistance <= 300) minimumZoom = 17;
-    if (nearestDistance !== null && nearestDistance !== undefined && nearestDistance <= 150) minimumZoom = 18;
+    if (proximityLevel === "near") minimumZoom = 17;
+    if (proximityLevel === "critical") minimumZoom = 18;
     map.setView(position, Math.max(map.getZoom(), minimumZoom), {
       animate: !mobileMapModeRef.current,
     });
@@ -417,14 +418,16 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
           && currentRoom.status === "playing"
           && currentMe
           && !currentMe.caught
-          && (currentMe.role === "hunter" || currentMe.vehicle?.state === "driving")
+          && (currentMe.role === "hunter" || currentMe.vehicle?.state !== "switching")
         ) {
-          const baseSpeed = currentMe.role === "hunter" ? HUNTER_SPEED : RUNNER_SPEED;
-          const nearestDistance = currentRoom.game?.nearestOpponentMeters;
-          const closeRatio = nearestDistance !== null && nearestDistance !== undefined && nearestDistance <= 300
-            ? Math.max(0, Math.min(1, (nearestDistance - 50) / 250))
-            : 1;
-          const speed = baseSpeed * (0.72 + 0.28 * closeRatio);
+          const baseSpeed = currentMe.role === "hunter"
+            ? HUNTER_SPEED
+            : currentMe.vehicle?.state === "dismounted"
+              ? WALKING_SPEED
+              : RUNNER_SPEED;
+          const proximityLevel = currentRoom.game?.proximityLevel ?? "none";
+          const proximityFactor = proximityLevel === "critical" ? 0.72 : proximityLevel === "near" ? 0.86 : 1;
+          const speed = baseSpeed * proximityFactor;
           const advanced = advanceRoute(routeRef.current, currentPosition, speed * dt, map);
           localPositionRef.current = advanced.position;
           selfMarkerRef.current?.setLatLng(advanced.position);
@@ -485,8 +488,8 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
     const currentRoom = roomRef.current;
     const currentMe = currentRoom.players.find((player) => player.id === currentRoom.meId);
     if (!map || !L || !from || currentRoom.status !== "playing" || !currentMe || currentMe.caught) return;
-    if (currentMe.role === "runner" && currentMe.vehicle?.state !== "driving") {
-      setRouteMessage("Autó nélkül nem mozoghatsz");
+    if (currentMe.role === "runner" && currentMe.vehicle?.state === "switching") {
+      setRouteMessage("Autóváltás közben nem mozoghatsz");
       return;
     }
     if (map.distance(from, target) > 12_000) {
@@ -721,15 +724,10 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
   }, [mapReady, room.players]);
 
   useEffect(() => {
-    const distance = room.game?.nearestOpponentMeters;
+    const serverLevel = room.game?.proximityLevel ?? "none";
     const map = mapRef.current;
     const own = localPositionRef.current;
-    const previousLevel = lastCloseLevelRef.current;
-    let nextLevel: "none" | "near" | "critical" = "none";
-    if (distance !== null && distance !== undefined) {
-      if (distance <= 150 || (previousLevel === "critical" && distance <= 180)) nextLevel = "critical";
-      else if (distance <= 300 || (previousLevel !== "none" && distance <= 360)) nextLevel = "near";
-    }
+    const nextLevel: "none" | "near" | "critical" = serverLevel;
     if (!map || !own || nextLevel === lastCloseLevelRef.current) return;
     lastCloseLevelRef.current = nextLevel;
     if (!cameraFollowingRef.current) return;
@@ -738,7 +736,7 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
     if (nextLevel === "critical") targetZoom = 18;
     if (mobileMapModeRef.current) map.setView(own, targetZoom, { animate: false });
     else map.flyTo(own, targetZoom, { duration: 0.8 });
-  }, [mapReady, room.game?.nearestOpponentMeters]);
+  }, [mapReady, room.game?.proximityLevel]);
 
   useEffect(() => {
     const timer = window.setInterval(async () => {
@@ -746,7 +744,7 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
       const currentMe = currentRoom.players.find((player) => player.id === currentRoom.meId);
       const position = localPositionRef.current;
       if (!position || !currentMe || currentRoom.status !== "playing" || currentMe.caught || sendBusyRef.current) return;
-      if (currentMe.role === "runner" && currentMe.vehicle?.state !== "driving") return;
+      if (currentMe.role === "runner" && currentMe.vehicle?.state === "switching") return;
       const previous = lastSentPositionRef.current;
       const moved = !previous || mapRef.current?.distance(previous, position) !== 0;
       if (!moved && Date.now() - lastServerWriteAtRef.current < 6000) return;
@@ -787,7 +785,7 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
   }, [acceptSnapshot, session]);
 
   useEffect(() => {
-    if (me?.caught || (me?.role === "runner" && me.vehicle?.state !== "driving")) {
+    if (me?.caught || (me?.role === "runner" && me.vehicle?.state === "switching")) {
       routeRef.current = { coords: [], index: 0 };
       routeLineRef.current?.remove();
       routeLineRef.current = null;
@@ -801,7 +799,7 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
       routeRef.current = { coords: [], index: 0 };
       routeLineRef.current?.remove();
       routeLineRef.current = null;
-      setRouteMessage("Kiszálltál · válassz új autót");
+      setRouteMessage("Kiszálltál · gyalog továbbmehetsz, vagy válassz új autót");
     }
     try {
       const next = action === "exit"
@@ -894,10 +892,7 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
     onExit();
   };
 
-  const nearest = room.game?.nearestOpponentMeters;
-  const closeLevel = nearest !== null && nearest !== undefined && nearest <= 300
-    ? (nearest <= 150 ? "critical" : "near")
-    : "none";
+  const closeLevel = room.game?.proximityLevel ?? "none";
   const activeZone = ZONES[gameClock.phase];
   const nextZone = ZONES[Math.min(gameClock.phase + 1, ZONES.length - 1)];
   const winner = room.game?.winner;
@@ -1045,7 +1040,7 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
               <section className={`${styles.panel} ${styles.vehiclePanel} ${styles[`vehicle_${vehicle.state}`]} ${styles[`vehicle_${vehicleWarning}`]}`}>
                 <div className={styles.panelHead}>
                   <span>AUTÓ · {String(vehicle.cycle + 1).padStart(2, "0")}</span>
-                  <b><i />{vehicle.overdue ? "ÉLŐBEN LÁTHATÓ" : vehicle.state === "driving" ? "MENETBEN" : "MOZDULATLAN"}</b>
+                  <b><i />{vehicle.overdue ? "ÉLŐBEN LÁTHATÓ" : vehicle.state === "driving" ? "MENETBEN" : vehicle.state === "dismounted" ? "GYALOG" : "MOZDULATLAN"}</b>
                 </div>
                 {vehicle.state === "driving" ? (
                   <>
@@ -1065,8 +1060,8 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
                   </>
                 ) : vehicle.state === "dismounted" ? (
                   <>
-                    <div className={styles.vehicleClock}>ÁLLSZ</div>
-                    <p>Gyalogos mozgás nincs. Válaszd ki a következő autót.</p>
+                    <div className={styles.vehicleClock}>5 KM/H</div>
+                    <p>Gyalog haladsz az utakon. Válassz célpontot, közelíts meg egy egyeztetett autót, vagy stoppolj.</p>
                     {vehicle.handoffCars.length > 0 && <div className={styles.handoffChoices}><small>VÁLASSZ KÖZELI AUTÓT</small><div>{vehicle.handoffCars.map((car, index) => {
                       const point: LatLng = [car.lat, car.lng];
                       const selected = vehicle.handoffPoint && Math.abs(vehicle.handoffPoint.lat - car.lat) < 0.00001 && Math.abs(vehicle.handoffPoint.lng - car.lng) < 0.00001;
@@ -1125,4 +1120,5 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
     </main>
   );
 }
+
 

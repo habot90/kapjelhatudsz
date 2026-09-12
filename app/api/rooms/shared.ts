@@ -135,6 +135,7 @@ export type RoomSnapshot = {
     capturedCount: number;
     winner: "hunter" | "runners" | null;
     nearestOpponentMeters: number | null;
+    proximityLevel: "none" | "near" | "critical";
   } | null;
 };
 
@@ -171,6 +172,9 @@ const HANDOFF_DISTANCE_METERS = 75;
 const ZONE_INTERVAL_MS = 15 * 60 * 1000;
 const POSITION_JITTER_METERS = 15;
 const MIN_POSITION_INTERVAL_MS = 700;
+const WALKING_SPEED_METERS_PER_SECOND = 5 / 3.6;
+const HUNTER_SPEED_METERS_PER_SECOND = 24;
+const RUNNER_SPEED_METERS_PER_SECOND = 21;
 const MAX_POSITION_AGE_MS = 20_000;
 
 function stableHash(value: string): number {
@@ -1103,8 +1107,8 @@ export async function updatePlayerPosition(
     throw new ApiProblem(409, "GAME_NOT_RUNNING", "A közös térkép csak futó játékban mozgatható.");
   }
   if (current.caught) throw new ApiProblem(409, "PLAYER_CAUGHT", "Az elfogott játékos már nem mozoghat.");
-  if (current.role === "runner" && current.vehicle_state !== "driving") {
-    throw new ApiProblem(409, "VEHICLE_IMMOBILE", "Kiszállás és autóváltás közben nem mozoghatsz.");
+  if (current.role === "runner" && current.vehicle_state === "switching") {
+    throw new ApiProblem(409, "VEHICLE_IMMOBILE", "Autóváltás közben nem mozoghatsz.");
   }
 
   if (current.lat !== null && current.lng !== null && current.position_updated_at !== null) {
@@ -1113,7 +1117,22 @@ export async function updatePlayerPosition(
       throw new ApiProblem(429, "POSITION_RATE_LIMIT", "A pozíció túl gyorsan frissül. Várj egy pillanatot.");
     }
     const elapsedSeconds = elapsedMs / 1000;
-    const speedLimit = current.role === "hunter" ? 34 : 30;
+    const nearbyOpponents = await database.prepare(
+      `SELECT lat, lng FROM room_players
+       WHERE room_code = ? AND left_at IS NULL AND role <> ? AND caught = 0
+         AND lat IS NOT NULL AND lng IS NOT NULL AND last_seen_at >= ?`,
+    ).bind(session.roomCode, current.role, now - MAX_POSITION_AGE_MS).all<{ lat: number; lng: number }>();
+    const nearestOpponentDistance = nearbyOpponents.results.reduce((nearest, opponent) => Math.min(
+      nearest,
+      distanceMeters({ lat: current.lat as number, lng: current.lng as number }, opponent),
+    ), Number.POSITIVE_INFINITY);
+    const proximityFactor = nearestOpponentDistance <= 150 ? 0.72 : nearestOpponentDistance <= 300 ? 0.86 : 1;
+    const baseSpeedLimit = current.role === "hunter"
+      ? HUNTER_SPEED_METERS_PER_SECOND
+      : current.vehicle_state === "dismounted"
+        ? WALKING_SPEED_METERS_PER_SECOND
+        : RUNNER_SPEED_METERS_PER_SECOND;
+    const speedLimit = baseSpeedLimit * proximityFactor;
     const allowedMeters = POSITION_JITTER_METERS + speedLimit * Math.min(elapsedSeconds, 30);
     const travelledMeters = distanceMeters(
       { lat: current.lat, lng: current.lng },
@@ -1357,6 +1376,19 @@ export async function getRoomSnapshot(
   const lastSignalAtMs = room.started_at !== null && ownSignalIndex > 0
     ? room.started_at + ownSignalIndex * ownSignalIntervalMs
     : null;
+  const nearestOpponentDistance = room.status === "playing" && me?.lat !== null && me?.lng !== null
+    ? playerResult.results
+        .filter((player) => player.id !== me.id && player.role !== me.role && !player.caught && player.lat !== null && player.lng !== null && player.last_seen_at >= now - MAX_POSITION_AGE_MS)
+        .reduce((nearest, player) => Math.min(nearest, distanceMeters(
+          { lat: me.lat as number, lng: me.lng as number },
+          { lat: player.lat as number, lng: player.lng as number },
+        )), Number.POSITIVE_INFINITY)
+    : Number.POSITIVE_INFINITY;
+  const proximityLevel: "none" | "near" | "critical" = nearestOpponentDistance <= 150
+    ? "critical"
+    : nearestOpponentDistance <= 300
+      ? "near"
+      : "none";
 
   return {
     code: room.code,
@@ -1384,6 +1416,7 @@ export async function getRoomSnapshot(
       capturedCount,
       winner,
       nearestOpponentMeters: null,
+      proximityLevel,
     },
   };
 }
@@ -1401,4 +1434,5 @@ function getStartBlocker(
   if (players.some((player) => !player.ready)) return "Még nem minden játékos áll készen.";
   return null;
 }
+
 

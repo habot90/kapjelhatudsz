@@ -56,6 +56,7 @@ export type RoomGameState = {
   capturedCount: number;
   winner: "hunter" | "runners" | null;
   nearestOpponentMeters: number | null;
+  proximityLevel: "none" | "near" | "critical";
 };
 
 export type RoomSnapshot = {
@@ -111,4 +112,5 @@ export type ConnectionState =
   | "online"
   | "reconnecting"
   | "offline";
+
 

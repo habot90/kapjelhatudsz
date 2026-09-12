@@ -35,7 +35,7 @@
 ## Autóváltás
 
 **Állapot:** jóváhagyott terv, még nincs leprogramozva  
-**Rögzítve:** 2026. szeptember 4.
+**Rögzítve:** 2026. szeptember 4.; gyalogos szabály pontosítva 2026. szeptember 12.
 
 ### Alapszabály
 
@@ -70,11 +70,11 @@
 
 ### Kiszállás
 
-- A **KISZÁLLOK** gomb megnyomásakor az autó és a játékos azonnal megáll.
-- A megkezdett útvonal törlődik; gyalogos mozgás nincs.
+- A **KISZÁLLOK** gomb megnyomásakor az autó azonnal megáll, és a megkezdett autós útvonal törlődik.
+- A menekülő ezután közúti útvonalakon gyalog továbbhaladhat, 5 km/h sebességgel.
 - A folyamatos élő követés megszűnik.
 - Az üldöző térképén a kiszállás helye 60 másodpercig szürke, mozdulatlan „utolsó ismert hely” jelölőként marad meg.
-- Ezután a menekülő csak egy előre egyeztetett autó átvételével vagy stoppolással indulhat tovább.
+- A menekülő gyalog megközelíthet egy előre egyeztetett autót, vagy bármikor stoppolást indíthat.
 
 ### Előre egyeztetett autó
 
@@ -120,7 +120,7 @@
 
 - Az ötperces lejáratot a szerver állapítja meg, nem a telefon órája.
 - A lejárat pillanatában az élő helyzet rögzül akkor is, ha a menekülő azonnal kiszáll.
-- Kiszállás közben és várakozás alatt a szerver nem fogad el mozgást.
+- Kiszállás után a szerver legfeljebb 5 km/h-s gyalogos mozgást fogad el; autóátvétel és stoppolás várakozása alatt nem fogad el mozgást.
 - Egy új autó csak a váltás vagy stoppolás befejezése után indít új ötperces ciklust.
 - Az 50 méteres elfogás minden autóváltási állapotban érvényes.
 - Kapcsolatvesztés alatt az autó ideje nem áll meg.
@@ -146,6 +146,7 @@
 - Az üldöző a menekülők civil nyomait, a menekülő az üldözőről érkező veszélyjelzéseket kapja.
 - A két szerep külön ikont és külön stratégiai panelt használ. Az üldözői felület a keresést, a menekülői felület a menekülési útvonalat és az autóváltást emeli ki.
 - Az 50 méteres elfogást továbbra is a szerver dönti el automatikusan; ehhez nem kell előzetesen megmutatni a pontos távolságot.
+- A 300 méteren belül kezdődő közeli-hajsza lassulás mindkét félre egyformán hat; a pontos távolság helyett csak a közelség fokozata kerül a kliensre.
 
 ## Helyzetjel és menekülői kezelőfelület (2026. szeptember 12-i pontosítás)
 
@@ -218,3 +219,4 @@ Az alábbi ötleteket Boti megőrzésre elfogadta. Ezek még nem végleges ját�
 6. Menekülők közötti segítség és részletes pontozás.
 
 Az első nagy taktikai csomag ajánlott összeállítása: **célpontok + autóváltás + haladási irányt mutató helyzetjel**.
+
