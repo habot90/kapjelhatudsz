@@ -48,10 +48,10 @@
 ### Normál autóhasználat
 
 1. Az új autó átvételekor elindul az `5:00` visszaszámláló.
-2. A menekülő három, csak számára látható, valódi út mellett elhelyezett átadási pontból választhat.
-3. A kiválasztott pont az aktív zónán belül legyen. Zónaváltás közelében a következő zóna irányába vezessen.
-4. Az átadási pont az utolsó 60 másodpercben válik használhatóvá.
-5. A menekülő bármikor dönthet úgy, hogy a tervezett átadás helyett kiszáll és stoppol.
+2. A menekülő legfeljebb 10, csak számára látható egyeztetett autót helyezhet el valódi út mellett.
+3. Az autók játék közben bármikor lerakhatók az aktív zónán belül; a rosszul megválasztott hely kockázata a menekülőé.
+4. A menekülő a térképen vagy az autólistában választja ki, melyik lerakott autót akarja átvenni.
+5. A menekülő bármikor dönthet úgy, hogy az egyeztetett autó helyett kiszáll és stoppol.
 
 ### Figyelmeztetések
 
@@ -140,10 +140,19 @@
 - Az üldöző és a menekülő sem látja folyamatosan az ellenfél pontos távolságát vagy irányát.
 - Mindkét oldal 10 percenként kap hivatalos, pontos pillanatképet az ellenfél helyéről. A jelölő a következő jelig a rögzített ponton marad, nem követi élőben az ellenfelet.
 - Civil bejelentés mindkét oldalnak véletlenszerűen 30–60 másodpercenként érkezik.
+- A civil bejelentés következő időpontja egyik félnek sem látható; a jelzés váratlanul jelenik meg.
 - A civil jelentés lehet határozott, bizonytalan vagy félrevezető. A térképen a megbízhatósághoz igazodó keresési körzet jelenik meg.
 - Az üldöző a menekülők civil nyomait, a menekülő az üldözőről érkező veszélyjelzéseket kapja.
 - A két szerep külön ikont és külön stratégiai panelt használ. Az üldözői felület a keresést, a menekülői felület a menekülési útvonalat és az autóváltást emeli ki.
 - Az 50 méteres elfogást továbbra is a szerver dönti el automatikusan; ehhez nem kell előzetesen megmutatni a pontos távolságot.
+
+## Helyzetjel és menekülői kezelőfelület (2026. szeptember 12-i pontosítás)
+
+- A látható 10 perces visszaszámláló mindig azt mutatja, mikor küldi el a játék a saját pillanatnyi helyet az ellenfélnek.
+- Az ellenfél következő helyzetjelét nem kell külön előre jelezni; amikor megérkezik, hangos és vizuális értesítés jelenik meg, valamint létrejön a befagyasztott térképjel.
+- Gyakorló módban a gépi üldöző élő ikonja nem látható a menekülőnek. Csak a hivatalos pillanatkép és a civil veszélyjelzés mutathat róla helyet.
+- A menekülő autóideje és fő műveletei mindig könnyen elérhetők: **AUTÓ LERAKÁSA**, **KISZÁLLOK**, **EGYEZTETETT AUTÓBA ÜLÖK**, **STOPPOLOK**.
+- A lerakott autók külön menüben és a térképen is megjelennek, legfeljebb 10 darabig.
 
 ## Jövőbeli játékmeneti ötletek (2026-09-08)
 
@@ -208,4 +217,3 @@ Az alábbi ötleteket Boti megőrzésre elfogadta. Ezek még nem végleges ját�
 6. Menekülők közötti segítség és részletes pontozás.
 
 Az első nagy taktikai csomag ajánlott összeállítása: **célpontok + autóváltás + haladási irányt mutató helyzetjel**.
-

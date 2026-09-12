@@ -123,6 +123,7 @@ test("server owns the five-minute vehicle cycle, exit trace and both switch mode
   const startedAt = Date.parse(initialRunner.vehicle.startedAt);
   assert.equal(initialRunner.vehicle.state, "driving");
   assert.equal(initialRunner.vehicle.overdue, false);
+  assert.deepEqual(initialRunner.vehicle.handoffCars, []);
   assert.equal(Date.parse(initialRunner.vehicle.expiresAt) - startedAt, 5 * 60 * 1000);
 
   const overdueAt = startedAt + 5 * 60 * 1000 + 1;
@@ -132,13 +133,16 @@ test("server owns the five-minute vehicle cycle, exit trace and both switch mode
   assert.ok(visibleRunner.position);
 
   await assert.rejects(
-    api.selectHandoffPoint(db, rs, initialRunner.position.lat, initialRunner.position.lng, startedAt + 3 * 60 * 1000),
-    error => error.code === "HANDOFF_TOO_EARLY",
+    api.placeHandoffCar(db, rs, initialRunner.position.lat, initialRunner.position.lng, startedAt + 3 * 60 * 1000),
+    error => error.code === "HANDOFF_ROAD_UNAVAILABLE",
   );
   globalThis.fetch = async () => Response.json({
     code: "Ok",
     waypoints: [{ distance: 0, location: [initialRunner.position.lng, initialRunner.position.lat] }],
   });
+  await api.placeHandoffCar(db, rs, initialRunner.position.lat, initialRunner.position.lng, overdueAt + 400);
+  const withCar = await api.getRoomSnapshot(db, host.room.code, rs.playerId, overdueAt + 450);
+  assert.equal(withCar.players.find(p => p.id === rs.playerId).vehicle.handoffCars.length, 1);
   await api.selectHandoffPoint(db, rs, initialRunner.position.lat, initialRunner.position.lng, overdueAt + 500);
 
   await api.exitVehicle(db, rs, overdueAt + 1000);
@@ -157,6 +161,7 @@ test("server owns the five-minute vehicle cycle, exit trace and both switch mode
   const switched = await api.getRoomSnapshot(db, host.room.code, rs.playerId, switchStartedAt + 10_001);
   assert.equal(switched.players.find(p => p.id === rs.playerId).vehicle.state, "driving");
   assert.equal(switched.players.find(p => p.id === rs.playerId).vehicle.cycle, 1);
+  assert.deepEqual(switched.players.find(p => p.id === rs.playerId).vehicle.handoffCars, []);
   await assert.rejects(
     api.updatePlayerPosition(db, rs, initialRunner.position.lat + 0.005, initialRunner.position.lng, switchStartedAt + 11_001),
     error => error.code === "MOVEMENT_TOO_FAST",

@@ -100,13 +100,15 @@ test("keeps the shared lobby contract wired to durable room storage", async () =
 });
 
 test("keeps the online map, protected positions and timed signals wired together", async () => {
-  const [game, gameCss, globalCss, roomApi, migration, civilianMigration] = await Promise.all([
+  const [page, game, gameCss, globalCss, roomApi, migration, civilianMigration, handoffMigration] = await Promise.all([
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/multiplayer/MultiplayerGame.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/multiplayer/MultiplayerGame.module.css", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/api/rooms/shared.ts", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0001_hesitant_bulldozer.sql", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0005_handy_sharon_carter.sql", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0006_shallow_rattler.sql", import.meta.url), "utf8"),
   ]);
 
   assert.match(game, /router\.project-osrm\.org\/route\/v1\/driving/);
@@ -131,6 +133,12 @@ test("keeps the online map, protected positions and timed signals wired together
   assert.match(roomApi, /nearestOpponentMeters: null/);
   assert.match(game, /CIVIL BEJELENTÉS/);
   assert.match(game, /TÁVOLSÁG REJTVE/);
+  assert.doesNotMatch(game, /KÖVETKEZŐ CIVIL HÍVÁS/);
+  assert.doesNotMatch(page, /KÖVETKEZŐ CIVIL HÍVÁS/);
+  assert.doesNotMatch(roomApi, /nextCivilianReportAt/);
+  assert.match(game, /A SAJÁT HELYZETED ELKÜLDÉSÉIG/);
+  assert.match(page, /SAT \/\/ SAJÁT JEL/);
+  assert.match(page, /opacity:playerRole==="hunter"\?1:0/);
   assert.match(civilianMigration, /civilian_reported_at/);
   assert.match(roomApi, /CAPTURE_DISTANCE_METERS = 50/);
   assert.match(roomApi, /await syncRoomGame\(database, session\.roomCode, now\)[\s\S]*UPDATE room_players/);
@@ -144,9 +152,16 @@ test("keeps the online map, protected positions and timed signals wired together
   assert.match(roomApi, /position_updated_at = switch_ends_at/);
   assert.match(game, /KISZÁLLOK/);
   assert.match(game, /STOPPOLOK/);
+  assert.match(game, /AUTÓ LERAKÁSA/);
+  assert.match(game, /EGYEZTETETT AUTÓBA ÜLÖK/);
+  assert.match(game, /action: "place_handoff_car"/);
+  assert.match(game, /action: "remove_handoff_car"/);
+  assert.match(page, /AUTÓ LERAKÁSA/);
+  assert.match(page, /EGYEZTETETT AUTÓBA ÜLÖK/);
   assert.match(game, /action: "select_handoff"/);
+  assert.match(roomApi, /cars\.length >= 10/);
+  assert.match(handoffMigration, /handoff_cars/);
   assert.match(migration, /position_updated_at/);
   assert.match(migration, /revision/);
 });
-
 

@@ -781,6 +781,139 @@ button:focus-visible {
   color: #ffb785;
 }
 
+.practice-parked-car,
+.online-handoff-car {
+  border: 0 !important;
+  background: none !important;
+  text-align: center;
+}
+
+.practice-parked-car span,
+.online-handoff-car span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #eafff5;
+  border-radius: 9px;
+  background: #16704c;
+  box-shadow: 0 0 0 6px rgba(42, 220, 142, .13), 0 7px 20px rgba(0, 0, 0, .6);
+  font-size: 17px;
+}
+
+.practice-parked-car b,
+.online-handoff-car b {
+  position: absolute;
+  top: -7px;
+  right: -5px;
+  width: 17px;
+  height: 17px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #07110d;
+  background: #65edaa;
+  font: 900 9px/1 var(--font-geist-mono), monospace;
+}
+
+.practice-vehicle {
+  border-color: rgba(50, 208, 137, .42);
+  background:
+    radial-gradient(circle at 92% 18%, rgba(45, 201, 132, .13), transparent 34%),
+    linear-gradient(145deg, rgba(19, 40, 34, .97), rgba(10, 22, 21, .98));
+}
+
+.practice-vehicle.overdue {
+  border-color: rgba(255, 81, 69, .78);
+  box-shadow: inset 0 0 34px rgba(255, 56, 39, .08), 0 0 28px rgba(255, 56, 39, .1);
+}
+
+.vehicle-live-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #79dca9;
+  font: 800 9px/1 var(--font-geist-mono), monospace;
+  letter-spacing: .07em;
+}
+
+.vehicle-live-state i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 9px currentColor;
+}
+
+.practice-vehicle.overdue .vehicle-live-state { color: #ff7165; }
+
+.practice-vehicle-clock {
+  margin: 10px 0 4px;
+  color: #effff7;
+  font: 900 clamp(28px, 4vw, 42px)/1 var(--font-geist-mono), monospace;
+  letter-spacing: -.06em;
+}
+
+.practice-vehicle > p {
+  margin: 0 0 11px;
+  color: #9bb5ad;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.practice-car-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.practice-car-actions button {
+  min-height: 48px;
+  padding: 8px 9px;
+  border: 1px solid rgba(101, 237, 170, .3);
+  border-radius: 8px;
+  color: #e8fff4;
+  background: rgba(16, 49, 38, .68);
+  font: 850 10px/1.25 var(--font-geist-mono), monospace;
+}
+
+.practice-car-actions button.active {
+  color: #07150e;
+  border-color: #65edaa;
+  background: #65edaa;
+}
+
+.practice-car-actions button.danger {
+  color: #ffd6d1;
+  border-color: rgba(255, 91, 74, .52);
+  background: rgba(107, 31, 25, .6);
+}
+
+.practice-car-actions button:disabled { opacity: .42; }
+.practice-car-actions small { display: block; margin-top: 4px; font-size: 8px; opacity: .74; }
+
+.practice-car-list {
+  max-height: 132px;
+  margin-top: 9px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  overflow: auto;
+}
+
+.practice-car-list > div {
+  display: grid;
+  grid-template-columns: 1fr 30px;
+  border: 1px solid rgba(77, 116, 105, .45);
+  border-radius: 6px;
+  background: rgba(5, 14, 12, .55);
+}
+
+.practice-car-list > div.selected { border-color: #65edaa; }
+.practice-car-list button { border: 0; color: #cfe7dc; background: none; text-align: left; font-size: 10px; }
+.practice-car-list button:last-child { text-align: center; color: #ff958b; font-size: 17px; }
+.practice-car-list small { margin-left: 7px; color: #78a695; }
+
 .ping-marker {
   border: 0 !important;
   background: none !important;
@@ -1891,4 +2024,3 @@ button:focus-visible {
   .practice-choice-grid.two { grid-template-columns: 1fr; }
   .practice-city-select { grid-template-columns: 1fr; }
 }
-

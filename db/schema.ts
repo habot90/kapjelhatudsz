@@ -62,6 +62,7 @@ export const roomPlayers = sqliteTable(
     handoffLat: real("handoff_lat"),
     handoffLng: real("handoff_lng"),
     handoffSelectedAt: integer("handoff_selected_at"),
+    handoffCars: text("handoff_cars").notNull().default("[]"),
   },
   (table) => [
     uniqueIndex("idx_room_players_token_hash").on(table.tokenHash),
@@ -72,5 +73,4 @@ export const roomPlayers = sqliteTable(
       .where(sql`${table.role} = 'hunter' AND ${table.leftAt} IS NULL`),
   ],
 );
-
 
