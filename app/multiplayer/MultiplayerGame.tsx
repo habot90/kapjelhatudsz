@@ -117,7 +117,8 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
   const localPositionRef = useRef<LatLng | null>(null);
   const routeAbortRef = useRef<AbortController | null>(null);
   const serverOffsetRef = useRef(0);
-  const lastSignalIndexRef = useRef(initialRoom.game?.signalIndex ?? 0);
+  const lastOwnSignalIndexRef = useRef(initialRoom.game?.signalIndex ?? 0);
+  const lastOpponentSignalIndexRef = useRef(initialRoom.game?.opponentSignalIndex ?? 0);
   const lastCivilianIndexRef = useRef(initialRoom.game?.civilianReportIndex ?? 0);
   const lastCapturedCountRef = useRef(initialRoom.game?.capturedCount ?? 0);
   const lastSentPositionRef = useRef<LatLng | null>(null);
@@ -170,23 +171,30 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
       roomRef.current = next;
       return;
     }
-    const previousSignal = lastSignalIndexRef.current;
-    const incomingSignal = next.game?.signalIndex ?? 0;
-    if (incomingSignal > previousSignal) {
-      lastSignalIndexRef.current = incomingSignal;
+    const incomingOwnSignal = next.game?.signalIndex ?? 0;
+    const incomingOpponentSignal = next.game?.opponentSignalIndex ?? 0;
+    const ownSignalSent = incomingOwnSignal > lastOwnSignalIndexRef.current;
+    const opponentSignalReceived = incomingOpponentSignal > lastOpponentSignalIndexRef.current;
+    if (ownSignalSent || opponentSignalReceived) {
+      lastOwnSignalIndexRef.current = incomingOwnSignal;
+      lastOpponentSignalIndexRef.current = incomingOpponentSignal;
       const incomingMe = next.players.find((player) => player.id === next.meId);
       setAlert({
         kind: "signal",
-        title: "A SAJÁT HELYZETED ELKÜLDVE",
-        detail: incomingMe?.role === "hunter"
-          ? "Az ellenfél megkapta a helyedet; közben a menekülők új pillanatképe is megérkezett."
-          : "Az ellenfél megkapta a helyedet; közben az üldöző új pillanatképe is megérkezett.",
+        title: ownSignalSent && opponentSignalReceived
+          ? "SAJÁT JEL ELKÜLDVE · ÚJ ELLENFÉL-JEL"
+          : ownSignalSent ? "A SAJÁT HELYZETED ELKÜLDVE" : "ÚJ ELLENFÉL-JEL ÉRKEZETT",
+        detail: ownSignalSent && opponentSignalReceived
+          ? "Az ellenfél megkapta a helyedet, és te is új pillanatképet kaptál."
+          : ownSignalSent
+            ? "Az ellenfél most megkapta a pillanatnyi helyedet."
+            : incomingMe?.role === "hunter" ? "A menekülők új pillanatképe megérkezett." : "Az üldöző új pillanatképe megérkezett.",
       });
       const signalPoints = next.players
         .filter((player) => player.signalPosition)
         .map((player) => [player.signalPosition!.lat, player.signalPosition!.lng] as LatLng);
       const ownPoint = localPositionRef.current;
-      if (incomingMe?.role === "hunter" && mapRef.current && signalPoints.length) {
+      if (opponentSignalReceived && incomingMe?.role === "hunter" && mapRef.current && signalPoints.length) {
         const wasFollowing = cameraFollowingRef.current;
         cameraFollowingRef.current = false;
         setCameraFollowing(false);
@@ -576,10 +584,10 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
       });
       const marker = L.marker([position.lat, position.lng], { icon, zIndexOffset: 900 })
         .addTo(map)
-        .bindTooltip(`${player.nickname} · utolsó 10 perces hivatalos jel`);
+        .bindTooltip(`${player.nickname} · utolsó ${player.role === "runner" ? "2:30-as" : "10 perces"} hivatalos jel`);
       signalMarkersRef.current.set(player.id, marker);
     });
-  }, [mapReady, room.players, room.game?.signalIndex]);
+  }, [mapReady, room.players, room.game?.opponentSignalIndex]);
 
   useEffect(() => {
     const L = leafletRef.current;
@@ -918,7 +926,7 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
   const focusOfficialSignal = () => {
     const points = officialSignals.map((player) => [player.signalPosition!.lat, player.signalPosition!.lng] as LatLng);
     if (!points.length) {
-      setAlert({ kind: "info", title: "NINCS HIVATALOS JEL", detail: "A pontos pillanatkép 10 percenként érkezik." });
+      setAlert({ kind: "info", title: "NINCS HIVATALOS JEL", detail: role === "hunter" ? "A menekülők pontos pillanatképe 2:30 percenként érkezik." : "Az üldöző pontos pillanatképe 10 percenként érkezik." });
       return;
     }
     focusPoints(points, 14);
@@ -1092,10 +1100,10 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
             </section>
 
             <section className={`${styles.panel} ${styles.signalPanel}`}>
-              <div className={styles.panelHead}><span>HELYZETJEL</span><b><i />#{room.game?.signalIndex ?? 0}</b></div>
+              <div className={styles.panelHead}><span>ELLENFÉL HELYZETJEL</span><b><i />#{room.game?.opponentSignalIndex ?? 0}</b></div>
               <div className={styles.signalRule}>
-                <span>10</span>
-                <p><strong>10 PERCENKÉNTI PILLANATKÉP</strong><small>{role === "hunter" ? "A menekülők jelölője megjelenik, majd a következő jelig ott marad." : "Az üldöző jelölője megjelenik, majd a következő jelig ott marad."}</small></p>
+                <span>{role === "hunter" ? "2:30" : "10"}</span>
+                <p><strong>{role === "hunter" ? "2:30 PERCENKÉNTI" : "10 PERCENKÉNTI"} PILLANATKÉP</strong><small>{role === "hunter" ? "A menekülők jelölője megjelenik, majd a következő jelig ott marad." : "Az üldöző jelölője megjelenik, majd a következő jelig ott marad."}</small></p>
               </div>
             </section>
 

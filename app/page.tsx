@@ -26,7 +26,7 @@ type Runner = {
 type Hunter = { pos: LatLng; route: LatLng[]; routeIndex: number; speed: number; requestId: number; planning: boolean; replanAfter: number };
 type TimedLayer = { layer: { remove: () => void }; expires: number };
 type Engine = {
-  simTime: number; gameLeft: number; zoneLeft: number; signalLeft: number; civilianLeft: number;
+  simTime: number; gameLeft: number; zoneLeft: number; ownSignalLeft: number; opponentSignalLeft: number; civilianLeft: number;
   phase: number; paused: boolean; timeScale: number; hunter: Hunter; runners: Runner[];
   lockId: number | null; lockEscape: number; closeLevel: "none" | "near" | "critical";
   lastNearestId: number | null; lastNearestDistance: number; lastHudAt: number;
@@ -35,7 +35,8 @@ type Engine = {
 
 const GAME_SECONDS = 120 * 60;
 const ZONE_SECONDS = 15 * 60;
-const SIGNAL_SECONDS = 10 * 60;
+const RUNNER_SIGNAL_SECONDS = 2.5 * 60;
+const HUNTER_SIGNAL_SECONDS = 10 * 60;
 const CAR_SECONDS = 5 * 60;
 const RUNNER_NAMES = ["Dani","Luca","Máté","Nóra","Bence","Zsófi","Áron","Lili","Marci","Anna"];
 const VEHICLES = ["fehér Dacia","szürke kombi","piros kisautó","fekete SUV","kék sedan","ezüst taxi"];
@@ -52,6 +53,8 @@ function PracticeGame({onBack,cityId,playerRole}:{onBack:()=>void;cityId:string;
   const RUNNER_STARTS:LatLng[]=cityStarts.slice(1).map(point=>[point.lat,point.lng]);
   const ZONES=getCityZones(city.id).map(zone=>({name:zone.name,center:[zone.lat,zone.lng] as LatLng,radius:zone.radius}));
   const CAPTURE_GOAL=playerRole==="hunter"?4:1;
+  const OWN_SIGNAL_SECONDS=playerRole==="runner"?RUNNER_SIGNAL_SECONDS:HUNTER_SIGNAL_SECONDS;
+  const OPPONENT_SIGNAL_SECONDS=playerRole==="runner"?HUNTER_SIGNAL_SECONDS:RUNNER_SIGNAL_SECONDS;
   const mapNode=useRef<HTMLDivElement>(null),mapRef=useRef<LeafletMap|null>(null),leafletRef=useRef<typeof import("leaflet")|null>(null);
   const engineRef=useRef<Engine|null>(null),hunterMarker=useRef<Marker|null>(null),hunterLine=useRef<Polyline|null>(null),zoneLayers=useRef<Circle[]>([]),signalMarkers=useRef(new Map<number,Marker>()),parkedCars=useRef<PracticeCar[]>([]),placingCarRef=useRef(false);
   const routeQueue=useRef<Array<()=>void>>([]),activeRoutes=useRef(0),routeCache=useRef(new Map<string,RouteData>()),disposed=useRef(false);
@@ -62,7 +65,7 @@ function PracticeGame({onBack,cityId,playerRole}:{onBack:()=>void;cityId:string;
   const [vehicleView,setVehicleView]=useState({vehicleState:"driving" as PracticeVehicleState,switchKind:null as PracticeSwitchKind,carLeft:CAR_SECONDS,switching:0,vehicleCycle:0});
   const [carViews,setCarViews]=useState<Array<{id:number;point:LatLng;distance:number}>>([]);
   const [feed,setFeed]=useState<string[]>([playerRole==="hunter"?`A menekülők szétszóródtak ${city.name} területén.`:`A gépi üldöző elindult utánad ${city.name} utcáin.`,"A pontos távolság és az ellenfél élő helyzete rejtve van."]);
-  const [hud,setHud]=useState({gameLeft:GAME_SECONDS,zoneLeft:ZONE_SECONDS,signalLeft:SIGNAL_SECONDS,phase:0,captured:0,alive:playerRole==="hunter"?10:1,current:ZONES[0].name,next:ZONES[1].name,vehicleTick:0});
+  const [hud,setHud]=useState({gameLeft:GAME_SECONDS,zoneLeft:ZONE_SECONDS,signalLeft:OWN_SIGNAL_SECONDS,phase:0,captured:0,alive:playerRole==="hunter"?10:1,current:ZONES[0].name,next:ZONES[1].name,vehicleTick:0});
 
   const addFeed=(text:string)=>setFeed(items=>[text,...items].slice(0,5));
   const offsetPoint=(center:LatLng,radius:number):LatLng=>{const angle=Math.random()*Math.PI*2,r=Math.sqrt(Math.random())*radius;return [center[0]+Math.sin(angle)*r/111320,center[1]+Math.cos(angle)*r/(111320*Math.cos(center[0]*Math.PI/180))]};
@@ -125,19 +128,24 @@ function PracticeGame({onBack,cityId,playerRole}:{onBack:()=>void;cityId:string;
     if(engine.captured>=CAPTURE_GOAL){engine.finished=true;engine.paused=true;setPaused(true);setGameOver("hunter")}
   };
 
-  const fireSignal=()=>{
+  const fireOwnSignal=()=>{
+    addFeed(playerRole==="runner"?"A 2:30-as saját helyzeted elküldve az üldözőnek.":"A 10 perces saját helyzeted elküldve a menekülőknek.");
+    setCallAlert("A SAJÁT HELYZETED ELKÜLDVE");window.setTimeout(()=>setCallAlert(null),2800);
+  };
+
+  const fireOpponentSignal=(ownSignalSent=false)=>{
     const engine=engineRef.current,L=leafletRef.current,map=mapRef.current;if(!engine||!L||!map)return;
     signalMarkers.current.forEach(marker=>marker.remove());signalMarkers.current.clear();
     const alive=engine.runners.filter(r=>!r.caught);
     if(playerRole==="hunter"){
-      alive.forEach(r=>{const icon=L.divIcon({className:"ping-marker",html:`<span>${r.id+1}</span>`,iconSize:[28,28],iconAnchor:[14,14]});const layer=L.marker(r.pos,{icon,zIndexOffset:700}).addTo(map).bindTooltip(`M${r.id+1} · 10 perces hivatalos jel`);signalMarkers.current.set(r.id,layer);const held=r.holdForPing;r.holdForPing=false;r.holdDecided=false;if(held){r.route=[];r.routeIndex=0;r.replanAfter=randomBetween(2,8)}});
+      alive.forEach(r=>{const icon=L.divIcon({className:"ping-marker",html:`<span>${r.id+1}</span>`,iconSize:[28,28],iconAnchor:[14,14]});const layer=L.marker(r.pos,{icon,zIndexOffset:700}).addTo(map).bindTooltip(`M${r.id+1} · 2:30-as hivatalos jel`);signalMarkers.current.set(r.id,layer);const held=r.holdForPing;r.holdForPing=false;r.holdDecided=false;if(held){r.route=[];r.routeIndex=0;r.replanAfter=randomBetween(2,8)}});
       addFeed(`Hivatalos jel: ${alive.length} menekülő pillanatnyi helye rögzítve.`);
     }else{
       const icon=L.divIcon({className:"ping-marker hunter-ping-marker",html:"<span>◎</span>",iconSize:[30,30],iconAnchor:[15,15]});
       const layer=L.marker(engine.hunter.pos,{icon,zIndexOffset:700}).addTo(map).bindTooltip("Az üldöző 10 perces hivatalos jele");signalMarkers.current.set(-1,layer);
       addFeed("Hivatalos jel: az üldöző pillanatnyi helye rögzítve.");
     }
-    setCallAlert("A SAJÁT HELYZETED ELKÜLDVE · ÚJ ELLENFÉL-JEL ÉRKEZETT");window.setTimeout(()=>setCallAlert(null),2800);
+    setCallAlert(ownSignalSent?"SAJÁT JEL ELKÜLDVE · ÚJ ELLENFÉL-JEL":"ÚJ ELLENFÉL-JEL ÉRKEZETT");window.setTimeout(()=>setCallAlert(null),2800);
   };
 
   const civilianReport=()=>{
@@ -167,7 +175,7 @@ function PracticeGame({onBack,cityId,playerRole}:{onBack:()=>void;cityId:string;
       const runnerIcon=(i:number)=>L.divIcon({className:"token-wrap runner-wrap",html:`<span>◆</span><b>${playerRole==="runner"&&i===0?"TE · MENEKÜLŐ":`M${i+1}`}</b>`,iconSize:[76,58],iconAnchor:[38,27]});
       const selectedRunnerStarts=playerRole==="runner"?RUNNER_STARTS.slice(0,1):RUNNER_STARTS;
       const runners:Runner[]=selectedRunnerStarts.map((pos,i)=>({id:i,name:playerRole==="runner"&&i===0?"Te":RUNNER_NAMES[i],pos,route:[],routeIndex:0,marker:L.marker(pos,{icon:runnerIcon(i),opacity:playerRole==="runner"&&i===0?1:0,zIndexOffset:900}).addTo(map),speed:20+Math.random()*2.5,caught:false,exposed:false,carLeft:playerRole==="runner"&&i===0?CAR_SECONDS:CAR_SECONDS-randomBetween(0,55),switching:0,reserves:4,vehicle:VEHICLES[i%VEHICLES.length],vehicleState:"driving",switchKind:null,switchTotal:0,vehicleCycle:0,selectedCarId:null,planning:false,requestId:0,replanAfter:i*.7,holdForPing:false,holdDecided:false}));
-      engineRef.current={simTime:0,gameLeft:GAME_SECONDS,zoneLeft:ZONE_SECONDS,signalLeft:SIGNAL_SECONDS,civilianLeft:randomBetween(30,60),phase:0,paused:false,timeScale:1,hunter:{pos:HUNTER_START,route:[],routeIndex:0,speed:24,requestId:0,planning:false,replanAfter:0},runners,lockId:null,lockEscape:0,closeLevel:"none",lastNearestId:null,lastNearestDistance:Infinity,lastHudAt:0,captured:0,finished:false,generation:Date.now(),layers:[]};drawZones(0);runners.forEach(r=>planRunner(r));if(playerRole==="runner")planHunter();
+      engineRef.current={simTime:0,gameLeft:GAME_SECONDS,zoneLeft:ZONE_SECONDS,ownSignalLeft:OWN_SIGNAL_SECONDS,opponentSignalLeft:OPPONENT_SIGNAL_SECONDS,civilianLeft:randomBetween(30,60),phase:0,paused:false,timeScale:1,hunter:{pos:HUNTER_START,route:[],routeIndex:0,speed:24,requestId:0,planning:false,replanAfter:0},runners,lockId:null,lockEscape:0,closeLevel:"none",lastNearestId:null,lastNearestDistance:Infinity,lastHudAt:0,captured:0,finished:false,generation:Date.now(),layers:[]};drawZones(0);runners.forEach(r=>planRunner(r));if(playerRole==="runner")planHunter();
       map.on("click",async e=>{const engine=engineRef.current;if(!engine||engine.paused||engine.finished)return;const mover=playerRole==="hunter"?engine.hunter:engine.runners[0];if(!mover||mover.caught)return;const target:[number,number]=[e.latlng.lat,e.latlng.lng];if(map.distance(mover.pos,target)>12000){setRouteMessage("Egyszerre legfeljebb 12 km-es útszakaszt válassz");return}const requestId=++mover.requestId,generation=engine.generation;
         if(playerRole==="runner"&&placingCarRef.current){
           if(parkedCars.current.length>=10){setRouteMessage("Már mind a 10 egyeztetett autót elhelyezted.");return}
@@ -179,8 +187,8 @@ function PracticeGame({onBack,cityId,playerRole}:{onBack:()=>void;cityId:string;
         setRouteMessage(playerRole==="hunter"?"Üldözési útvonal tervezése…":"Menekülési útvonal tervezése…");try{const route=await requestRoute(mover.pos,target,generation);if(mover.requestId!==requestId)return;mover.route=route.coords;mover.routeIndex=0;hunterLine.current?.remove();hunterLine.current=L.polyline(route.coords,{color:playerRole==="hunter"?"#278fe0":"#ff8a45",weight:5,opacity:.85,dashArray:"8 9"}).addTo(map);setRouteMessage(`${(route.distance/1000).toFixed(1)} km-es útvonal · menet közben új irányt is választhatsz`)}catch{setRouteMessage("Erre most nem sikerült közúti útvonalat találni")}});
 
       timer=window.setInterval(()=>{
-        const engine=engineRef.current;if(!engine||engine.paused||engine.finished)return;const now=performance.now(),realDt=Math.min(.5,(now-last)/1000);last=now;const dt=realDt*engine.timeScale;engine.simTime+=dt;engine.gameLeft-=dt;engine.zoneLeft-=dt;engine.signalLeft-=dt;engine.civilianLeft-=dt;
-        if(engine.gameLeft<=0){engine.finished=true;engine.paused=true;setPaused(true);setGameOver("runners");return}if(engine.zoneLeft<=0)advanceZone();if(engine.signalLeft<=0){engine.signalLeft+=SIGNAL_SECONDS;fireSignal()}if(engine.civilianLeft<=0){engine.civilianLeft=randomBetween(30,60);civilianReport()}
+        const engine=engineRef.current;if(!engine||engine.paused||engine.finished)return;const now=performance.now(),realDt=Math.min(.5,(now-last)/1000);last=now;const dt=realDt*engine.timeScale;engine.simTime+=dt;engine.gameLeft-=dt;engine.zoneLeft-=dt;engine.ownSignalLeft-=dt;engine.opponentSignalLeft-=dt;engine.civilianLeft-=dt;
+        if(engine.gameLeft<=0){engine.finished=true;engine.paused=true;setPaused(true);setGameOver("runners");return}if(engine.zoneLeft<=0)advanceZone();let ownSignalSent=false;if(engine.ownSignalLeft<=0){engine.ownSignalLeft+=OWN_SIGNAL_SECONDS;fireOwnSignal();ownSignalSent=true}if(engine.opponentSignalLeft<=0){engine.opponentSignalLeft+=OPPONENT_SIGNAL_SECONDS;fireOpponentSignal(ownSignalSent)}if(engine.civilianLeft<=0){engine.civilianLeft=randomBetween(30,60);civilianReport()}
         engine.layers=engine.layers.filter(item=>{if(item.expires<=engine.simTime){item.layer.remove();return false}return true});
         const alive=engine.runners.filter(r=>!r.caught);
         let nearest:Runner|null=null,nearestDistance=Infinity;for(const r of alive){const d=map.distance(engine.hunter.pos,r.pos);if(d<nearestDistance){nearest=r;nearestDistance=d}}
@@ -198,14 +206,14 @@ function PracticeGame({onBack,cityId,playerRole}:{onBack:()=>void;cityId:string;
           }
           if(r.switching>0){r.switching-=dt;if(r.switching<=0){r.carLeft=CAR_SECONDS;r.vehicle=VEHICLES[Math.floor(Math.random()*VEHICLES.length)];r.replanAfter=randomBetween(1,4)}continue}
           r.carLeft-=dt;if(r.carLeft<=0){r.route=[];r.routeIndex=0;const reserved=r.reserves>0&&Math.random()<.72;r.switching=reserved?randomBetween(7,14):randomBetween(25,70);if(reserved)r.reserves--;continue}
-          if(engine.signalLeft<=20&&!r.holdDecided){r.holdDecided=true;r.holdForPing=Math.random()<.55}
+          if(engine.opponentSignalLeft<=20&&!r.holdDecided){r.holdDecided=true;r.holdForPing=Math.random()<.55}
           if(r.replanAfter>0){r.replanAfter-=dt;if(r.replanAfter<=0)planRunner(r);continue}if(r.holdForPing)continue;if(!r.route.length&&!r.planning){planRunner(r);continue}
           const factor=locked?.id===r.id?(.68+.32*closeRatio):1,done=advance(r,r.speed*factor*dt,map);r.marker.setLatLng(r.pos);
           if(r.exposed&&pointInZone(r.pos,engine.phase)){r.exposed=false;r.marker.setOpacity(0);addFeed("Egy késő menekülő beért a biztonságos zónába.")}
           if(done){r.route=[];r.routeIndex=0;r.replanAfter=randomBetween(5,18)}
         }
         if(locked&&!locked.caught){lockedDistance=map.distance(engine.hunter.pos,locked.pos);if(lockedDistance<=50)captureRunner(locked);else if(engine.simTime-engine.lastHudAt>.8)map.panTo(playerRole==="hunter"?engine.hunter.pos:locked.pos,{animate:false})}
-        if(engine.simTime-engine.lastHudAt>=1){engine.lastNearestId=nearest?.id??null;engine.lastNearestDistance=nearestDistance;engine.lastHudAt=engine.simTime;setHud({gameLeft:engine.gameLeft,zoneLeft:engine.zoneLeft,signalLeft:engine.signalLeft,phase:engine.phase,captured:engine.captured,alive:alive.length,current:ZONES[engine.phase].name,next:ZONES[Math.min(engine.phase+1,ZONES.length-1)].name,vehicleTick:engine.simTime});if(playerRole==="runner"){const own=engine.runners[0];setVehicleView({vehicleState:own.vehicleState,switchKind:own.switchKind,carLeft:own.carLeft,switching:own.switching,vehicleCycle:own.vehicleCycle});setCarViews(parkedCars.current.map(car=>({id:car.id,point:car.point,distance:Math.round(map.distance(own.pos,car.point))})))}}
+        if(engine.simTime-engine.lastHudAt>=1){engine.lastNearestId=nearest?.id??null;engine.lastNearestDistance=nearestDistance;engine.lastHudAt=engine.simTime;setHud({gameLeft:engine.gameLeft,zoneLeft:engine.zoneLeft,signalLeft:engine.ownSignalLeft,phase:engine.phase,captured:engine.captured,alive:alive.length,current:ZONES[engine.phase].name,next:ZONES[Math.min(engine.phase+1,ZONES.length-1)].name,vehicleTick:engine.simTime});if(playerRole==="runner"){const own=engine.runners[0];setVehicleView({vehicleState:own.vehicleState,switchKind:own.switchKind,carLeft:own.carLeft,switching:own.switching,vehicleCycle:own.vehicleCycle});setCarViews(parkedCars.current.map(car=>({id:car.id,point:car.point,distance:Math.round(map.distance(own.pos,car.point))})))}}
       },100);
     });
     return()=>{disposed.current=true;if(timer)window.clearInterval(timer);routeQueue.current=[];engineRef.current?.layers.forEach(x=>x.layer.remove());snapshots.forEach(marker=>marker.remove());snapshots.clear();parkedCars.current.forEach(car=>car.marker.remove());parkedCars.current=[];mapRef.current?.remove();mapRef.current=null;engineRef.current=null};
@@ -217,7 +225,7 @@ function PracticeGame({onBack,cityId,playerRole}:{onBack:()=>void;cityId:string;
   const toggleSpeed=()=>{const engine=engineRef.current;if(!engine)return;const next=timeScale===1?20:1;engine.timeScale=next;setTimeScale(next);addFeed(next===1?"Valós idejű tempó visszaállítva.":"Tesztgyorsítás bekapcsolva (×20).")};
   const reload=()=>window.location.reload();
   const focusCivilian=()=>{const map=mapRef.current;if(!map||!lastCivilian){setCallAlert("Még nincs friss civil bejelentés.");window.setTimeout(()=>setCallAlert(null),2600);return}map.setView(lastCivilian.point,16,{animate:true})};
-  const focusOfficial=()=>{const map=mapRef.current;const markers=[...signalMarkers.current.values()];if(!map||!markers.length){setCallAlert("A hivatalos jel 10 percenként érkezik.");window.setTimeout(()=>setCallAlert(null),2600);return}const points=markers.map(marker=>marker.getLatLng());if(points.length===1)map.setView(points[0],15,{animate:true});else map.fitBounds(points,{padding:[55,55],maxZoom:14})};
+  const focusOfficial=()=>{const map=mapRef.current;const markers=[...signalMarkers.current.values()];if(!map||!markers.length){setCallAlert(playerRole==="hunter"?"A menekülők hivatalos jele 2:30 percenként érkezik.":"Az üldöző hivatalos jele 10 percenként érkezik.");window.setTimeout(()=>setCallAlert(null),2600);return}const points=markers.map(marker=>marker.getLatLng());if(points.length===1)map.setView(points[0],15,{animate:true});else map.fitBounds(points,{padding:[55,55],maxZoom:14})};
   const focusZone=()=>mapRef.current?.setView(ZONES[hud.phase].center,13,{animate:true});
   const selectedCar=selectedCarId===null?null:carViews.find(car=>car.id===selectedCarId)??null;
   const selectedCarDistance=selectedCar?.distance??null;
@@ -230,7 +238,7 @@ function PracticeGame({onBack,cityId,playerRole}:{onBack:()=>void;cityId:string;
     <header className="brandbar"><div className="brand-lockup"><span className="brandmark"><i>KE</i></span><div className="brandcopy"><strong>KAPJ EL, HA TUDSZ!</strong><small>GYAKORLÓ HAJSZA / {city.name.toUpperCase()}</small></div><span className="subtitle">Béta gyakorlópálya · {playerRole==="hunter"?"üldözői":"menekülői"} nézet</span></div><div className="top-actions"><span className={`live-state ${paused?"paused":""}`}><i/>{paused?"JÁTÉK SZÜNETEL":"GYAKORLÁS FUT"}</span><button onClick={onBack}><small>VISSZA</small>BEÁLLÍTÁSOK</button><button onClick={toggleSpeed} aria-pressed={timeScale>1} className={timeScale>1?"active":""}><small>SEBESSÉG</small>{timeScale>1?"TESZT ×20":"VALÓS IDŐ"}</button><button onClick={togglePause} aria-pressed={paused}><small>JÁTÉK</small>{paused?"FOLYTATÁS":"SZÜNET"}</button></div></header>
     <div className="game-layout">
       <div className="map-shell"><div ref={mapNode} className="real-map" aria-label={`${city.name} valós térképes gyakorló üldözése`}/><div className="map-grid" aria-hidden="true"/><div className="map-corners" aria-hidden="true"><i/><i/><i/><i/></div>
-        <div className="map-hud signal"><div className="signal-orbit"><span className="pulse"/></div><div className="signal-copy"><span className="hud-kicker">SAT // SAJÁT JEL</span><strong>ELKÜLDÉSIG <b>{formatTime(hud.signalLeft)}</b></strong><small>Ekkor az ellenfél megkapja a te pillanatnyi helyedet</small><div className="signal-meter"><i style={{width:`${Math.max(0,Math.min(100,(1-hud.signalLeft/SIGNAL_SECONDS)*100))}%`}}/></div></div></div>
+        <div className="map-hud signal"><div className="signal-orbit"><span className="pulse"/></div><div className="signal-copy"><span className="hud-kicker">SAT // SAJÁT JEL</span><strong>ELKÜLDÉSIG <b>{formatTime(hud.signalLeft)}</b></strong><small>{playerRole==="runner"?"A menekülő helye 2:30 percenként jut el az üldözőnek":"Az üldöző helye 10 percenként jut el a menekülőknek"}</small><div className="signal-meter"><i style={{width:`${Math.max(0,Math.min(100,(1-hud.signalLeft/OWN_SIGNAL_SECONDS)*100))}%`}}/></div></div></div>
         {callAlert&&<div className="call-alert" role="status"><span>☎</span><div><b>BEJÖVŐ INFORMÁCIÓ</b><small>{callAlert}</small></div></div>}
         <div className="instruction"><span className="command-key">ÚTVONAL</span><span className="blue-dot"/><span>{routeMessage}</span></div>
         {captureFlash&&<div className="capture-flash" role="alert"><span>⛓</span><strong>CSATT! BILINCS</strong><small>{captureFlash} elfogva</small></div>}

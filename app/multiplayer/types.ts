@@ -49,6 +49,8 @@ export type RoomGameState = {
   signalIndex: number;
   lastSignalAt: string | null;
   nextSignalAt: string | null;
+  opponentSignalIndex: number;
+  opponentSignalEverySeconds: number;
   civilianReportIndex: number;
   captureGoal: number;
   capturedCount: number;

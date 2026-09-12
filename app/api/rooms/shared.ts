@@ -128,6 +128,8 @@ export type RoomSnapshot = {
     signalIndex: number;
     lastSignalAt: string | null;
     nextSignalAt: string | null;
+    opponentSignalIndex: number;
+    opponentSignalEverySeconds: number;
     civilianReportIndex: number;
     captureGoal: number;
     capturedCount: number;
@@ -155,7 +157,8 @@ const ONLINE_WINDOW_MS = 20_000;
 const RECONNECT_GRACE_MS = 120_000;
 const TOUCH_THROTTLE_MS = 7_000;
 export const GAME_DURATION_MS = 120 * 60 * 1000;
-export const SIGNAL_INTERVAL_MS = 10 * 60 * 1000;
+export const RUNNER_SIGNAL_INTERVAL_MS = 2.5 * 60 * 1000;
+export const HUNTER_SIGNAL_INTERVAL_MS = 10 * 60 * 1000;
 export const CIVILIAN_REPORT_MIN_MS = 30 * 1000;
 export const CIVILIAN_REPORT_MAX_MS = 60 * 1000;
 export const CAPTURE_DISTANCE_METERS = 50;
@@ -778,25 +781,42 @@ export async function syncRoomGame(
     return;
   }
 
-  const dueSignalIndex = Math.floor(Math.max(0, now - room.started_at) / SIGNAL_INTERVAL_MS);
+  const dueSignalIndex = Math.floor(Math.max(0, now - room.started_at) / RUNNER_SIGNAL_INTERVAL_MS);
   if (dueSignalIndex > room.signal_index) {
-    await database.batch([
+    const previousHunterSignalIndex = Math.floor(room.signal_index * RUNNER_SIGNAL_INTERVAL_MS / HUNTER_SIGNAL_INTERVAL_MS);
+    const dueHunterSignalIndex = Math.floor(dueSignalIndex * RUNNER_SIGNAL_INTERVAL_MS / HUNTER_SIGNAL_INTERVAL_MS);
+    const signalStatements = [
       database.prepare(
         `UPDATE room_players
          SET signal_lat = lat, signal_lng = lng
          WHERE room_code = ? AND left_at IS NULL AND caught = 0
+           AND role = 'runner'
            AND lat IS NOT NULL AND lng IS NOT NULL
            AND EXISTS (
              SELECT 1 FROM rooms
              WHERE code = ? AND status = 'playing' AND signal_index < ?
            )`,
       ).bind(code, code, dueSignalIndex),
-      database.prepare(
+    ];
+    if (dueHunterSignalIndex > previousHunterSignalIndex) {
+      signalStatements.push(database.prepare(
+        `UPDATE room_players
+         SET signal_lat = lat, signal_lng = lng
+         WHERE room_code = ? AND left_at IS NULL AND caught = 0
+           AND role = 'hunter'
+           AND lat IS NOT NULL AND lng IS NOT NULL
+           AND EXISTS (
+             SELECT 1 FROM rooms
+             WHERE code = ? AND status = 'playing' AND signal_index < ?
+           )`,
+      ).bind(code, code, dueSignalIndex));
+    }
+    signalStatements.push(database.prepare(
         `UPDATE rooms
          SET signal_index = ?, updated_at = ?, revision = revision + 1
          WHERE code = ? AND status = 'playing' AND signal_index < ?`,
-      ).bind(dueSignalIndex, now, code, dueSignalIndex),
-    ]);
+      ).bind(dueSignalIndex, now, code, dueSignalIndex));
+    await database.batch(signalStatements);
   }
 
   if (room.next_civilian_at === null || now < room.next_civilian_at) return;
@@ -1204,9 +1224,18 @@ export async function getRoomSnapshot(
   if (!room) throw new ApiProblem(404, "ROOM_NOT_FOUND", "Nincs ilyen játékszoba.");
 
   const me = playerResult.results.find((player) => player.id === meId);
-  const lastSignalAtMs = room.started_at !== null && room.signal_index > 0
-    ? room.started_at + room.signal_index * SIGNAL_INTERVAL_MS
-    : null;
+  const runnerSignalIndex = room.signal_index;
+  const hunterSignalIndex = Math.floor(room.signal_index * RUNNER_SIGNAL_INTERVAL_MS / HUNTER_SIGNAL_INTERVAL_MS);
+  const viewerRole = me?.role ?? "runner";
+  const ownSignalIndex = viewerRole === "runner" ? runnerSignalIndex : hunterSignalIndex;
+  const opponentSignalIndex = viewerRole === "runner" ? hunterSignalIndex : runnerSignalIndex;
+  const ownSignalIntervalMs = viewerRole === "runner" ? RUNNER_SIGNAL_INTERVAL_MS : HUNTER_SIGNAL_INTERVAL_MS;
+  const opponentSignalIntervalMs = viewerRole === "runner" ? HUNTER_SIGNAL_INTERVAL_MS : RUNNER_SIGNAL_INTERVAL_MS;
+  const playerSignalTime = (role: PlayerRole): number | null => {
+    const index = role === "runner" ? runnerSignalIndex : hunterSignalIndex;
+    const interval = role === "runner" ? RUNNER_SIGNAL_INTERVAL_MS : HUNTER_SIGNAL_INTERVAL_MS;
+    return room.started_at !== null && index > 0 ? room.started_at + index * interval : null;
+  };
   const GAME_ZONES = getCityZones(room.city_id);
   const zoneIndex = room.started_at === null
     ? 0
@@ -1261,12 +1290,12 @@ export async function getRoomSnapshot(
       && !player.caught
       && player.signal_lat !== null
       && player.signal_lng !== null
-      && lastSignalAtMs !== null
+      && playerSignalTime(player.role) !== null
     )
       ? {
           lat: player.signal_lat,
           lng: player.signal_lng,
-          updatedAt: new Date(lastSignalAtMs).toISOString(),
+          updatedAt: new Date(playerSignalTime(player.role) as number).toISOString(),
         }
       : null,
     civilianReport: (
@@ -1323,7 +1352,10 @@ export async function getRoomSnapshot(
     ? (capturedCount >= room.capture_goal ? "hunter" : "runners")
     : null;
   const nextSignalAtMs = room.status === "playing" && room.started_at !== null
-    ? room.started_at + (room.signal_index + 1) * SIGNAL_INTERVAL_MS
+    ? room.started_at + (ownSignalIndex + 1) * ownSignalIntervalMs
+    : null;
+  const lastSignalAtMs = room.started_at !== null && ownSignalIndex > 0
+    ? room.started_at + ownSignalIndex * ownSignalIntervalMs
     : null;
 
   return {
@@ -1341,10 +1373,12 @@ export async function getRoomSnapshot(
     revision: room.revision,
     game: room.started_at === null ? null : {
       durationSeconds: GAME_DURATION_MS / 1000,
-      signalEverySeconds: SIGNAL_INTERVAL_MS / 1000,
-      signalIndex: room.signal_index,
+      signalEverySeconds: ownSignalIntervalMs / 1000,
+      signalIndex: ownSignalIndex,
       lastSignalAt: lastSignalAtMs === null ? null : new Date(lastSignalAtMs).toISOString(),
       nextSignalAt: nextSignalAtMs === null ? null : new Date(nextSignalAtMs).toISOString(),
+      opponentSignalIndex,
+      opponentSignalEverySeconds: opponentSignalIntervalMs / 1000,
       civilianReportIndex: room.civilian_index,
       captureGoal: room.capture_goal,
       capturedCount,
