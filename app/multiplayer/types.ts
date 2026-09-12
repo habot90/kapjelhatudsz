@@ -10,6 +10,10 @@ export type PlayerPosition = {
   updatedAt: string;
 };
 
+export type CivilianReport = PlayerPosition & {
+  accuracy: "confirmed" | "uncertain" | "misleading";
+};
+
 export type RoomPlayer = {
   id: string;
   nickname: string;
@@ -22,6 +26,7 @@ export type RoomPlayer = {
   liveTracked: boolean;
   position: PlayerPosition | null;
   signalPosition: PlayerPosition | null;
+  civilianReport: CivilianReport | null;
   lastExitPosition: PlayerPosition | null;
   vehicle: {
     state: VehicleState;
@@ -41,6 +46,8 @@ export type RoomGameState = {
   signalIndex: number;
   lastSignalAt: string | null;
   nextSignalAt: string | null;
+  civilianReportIndex: number;
+  nextCivilianReportAt: string | null;
   captureGoal: number;
   capturedCount: number;
   winner: "hunter" | "runners" | null;
@@ -98,4 +105,5 @@ export type ConnectionState =
   | "online"
   | "reconnecting"
   | "offline";
+
 

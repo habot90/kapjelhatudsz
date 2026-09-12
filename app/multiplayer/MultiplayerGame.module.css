@@ -81,6 +81,7 @@
 .brandCopy,
 .roleCard,
 .signalHud,
+.civilianHud,
 .routeBar,
 .panelHead,
 .stats,
@@ -252,6 +253,12 @@
 .signalHud > div { grid-column: 2; height: 3px; overflow: hidden; border-radius: 4px; background: #1f323d; }
 .signalHud > div i { display: block; height: 100%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
 
+.civilianHud { position: absolute; z-index: 500; top: 104px; right: 18px; min-width: 248px; padding: 10px 12px; display: grid; grid-template-columns: 36px 1fr; gap: 10px; align-items: center; border: 1px solid rgba(255,138,69,.42); border-radius: 9px; background: rgba(7,15,20,.91); box-shadow: 0 12px 38px rgba(0,0,0,.3); }
+.civilianHud > span:first-child { display: grid; width: 34px; height: 34px; place-items: center; color: #061218; border-radius: 9px; background: var(--orange); font-size: 18px; }
+.civilianHud > span:last-child { display: grid; gap: 3px; }
+.civilianHud small { color: #9e846d; font: 750 8px/1 var(--font-geist-mono), monospace; letter-spacing: .11em; }
+.civilianHud strong { color: var(--orange); font: 900 19px/1 var(--font-geist-mono), monospace; }
+
 .routeBar { right: 18px; bottom: 18px; left: 18px; min-height: 48px; gap: 10px; padding: 0 14px; border-radius: 8px; }
 .routeBar > span { color: var(--cyan); font: 850 9px/1 var(--font-geist-mono), monospace; letter-spacing: .15em; }
 .routeBar > i { width: 5px; height: 5px; flex: 0 0 auto; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 9px var(--cyan); }
@@ -269,6 +276,7 @@
 .eventAlert strong { font: 900 12px/1.2 var(--font-geist-mono), monospace; letter-spacing: .1em; }
 .eventAlert small { color: #a9bbc4; line-height: 1.35; }
 .event_capture > span { background: var(--red); }
+.event_civilian > span { background: var(--orange); }
 
 .caughtOverlay,
 .finishOverlay {
@@ -318,6 +326,24 @@
 .proximityPanel > p { min-height: 34px; margin: 4px 14px 12px; color: #7f949f; font-size: 11px; line-height: 1.45; }
 .range { margin: 0 14px; gap: 7px; color: #65808d; font: 700 7px/1 var(--font-geist-mono), monospace; letter-spacing: .05em; }
 .range i { height: 1px; flex: 1; background: linear-gradient(90deg, var(--cyan), var(--red)); }
+
+.operationsPanel { padding-bottom: 12px; overflow: hidden; }
+.hunterOperations { border-top: 2px solid var(--cyan); }
+.runnerOperations { border-top: 2px solid var(--orange); }
+.intelStatus { min-height: 78px; padding: 12px 13px; display: grid; grid-template-columns: 38px 1fr; gap: 10px; align-items: center; }
+.intelStatus > span { display: grid; width: 38px; height: 38px; place-items: center; color: #061218; border-radius: 9px; background: var(--orange); font-size: 18px; font-weight: 900; }
+.intelStatus p { margin: 0; display: grid; gap: 5px; }
+.intelStatus strong { color: #ecf4f7; font: 850 9px/1.2 var(--font-geist-mono), monospace; letter-spacing: .07em; }
+.intelStatus small { color: #7f949f; font-size: 10px; line-height: 1.4; }
+.strategyButtons { padding: 0 12px; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 6px; }
+.strategyButtons button { min-width: 0; min-height: 64px; padding: 7px 5px; display: grid; place-items: center; gap: 3px; color: #dbe8ed; border: 1px solid #29404d; border-radius: 7px; background: #0a1419; cursor: pointer; }
+.strategyButtons button:hover { border-color: var(--cyan); background: #10232c; }
+.runnerOperations .strategyButtons button:hover { border-color: var(--orange); }
+.strategyButtons button > span { color: var(--cyan); font-size: 17px; }
+.runnerOperations .strategyButtons button > span { color: var(--orange); }
+.strategyButtons strong { overflow: hidden; max-width: 100%; font: 850 8px/1.15 var(--font-geist-mono), monospace; text-overflow: ellipsis; }
+.strategyButtons small { color: #607985; font: 700 7px/1 var(--font-geist-mono), monospace; }
+.captureRule { margin: 10px 13px 0; color: #728994; font-size: 10px; line-height: 1.4; }
 
 .stats { gap: 9px; }
 .stats > div { min-width: 0; flex: 1; padding: 12px; display: grid; gap: 6px; border: 1px solid #21323c; border-radius: 9px; background: #0c161b; }
@@ -375,6 +401,12 @@
 :global(.online-token-wrap b) { position: absolute; top: 44px; left: 50%; padding: 3px 6px; color: white; border-radius: 4px; background: rgba(4,10,14,.86); font: 850 8px/1 sans-serif; transform: translateX(-50%); }
 :global(.online-signal-wrap) { background: transparent; border: 0; }
 :global(.online-signal-wrap span) { display: grid; width: 32px; height: 32px; place-items: center; color: #061219; border: 2px solid white; border-radius: 50%; background: #ff8a45; box-shadow: 0 0 0 8px rgba(255,138,69,.16), 0 4px 20px rgba(0,0,0,.5); font: 900 11px/1 sans-serif; }
+:global(.online-signal-hunter span) { background: var(--cyan); }
+:global(.online-civilian-wrap) { background: transparent; border: 0; }
+:global(.online-civilian-wrap span) { display: grid; width: 36px; height: 36px; place-items: center; color: #061219; border: 2px solid white; border-radius: 10px; background: var(--orange); box-shadow: 0 0 0 7px rgba(255,138,69,.14), 0 4px 20px rgba(0,0,0,.5); font: 900 16px/1 sans-serif; }
+:global(.online-civilian-misleading span) { background: #b45cff; }
+:global(.online-civilian-uncertain span) { background: #f0b34c; }
+:global(.online-civilian-wrap i) { position: absolute; inset: -8px; border: 1px dashed rgba(255,184,96,.7); border-radius: 50%; }
 :global(.online-exit-wrap) { background: transparent; border: 0; }
 :global(.online-exit-wrap span) { display: grid; width: 34px; height: 34px; place-items: center; color: #d9e2e6; border: 2px solid #8798a0; border-radius: 8px; background: rgba(24,35,40,.9); box-shadow: 0 0 0 7px rgba(135,152,160,.14), 0 4px 18px rgba(0,0,0,.55); font: 900 18px/1 sans-serif; }
 :global(.online-signal-wrap i) { position: absolute; inset: -7px; border: 1px solid rgba(255,138,69,.55); border-radius: 50%; animation: pingRing 1.9s ease-out infinite; }
@@ -402,6 +434,7 @@
   .layout { min-height: auto; }
   .mapPanel { min-height: 69vh; }
   .signalHud { top: 76px; right: 10px; min-width: 205px; }
+  .civilianHud { top: 150px; right: 10px; min-width: 205px; }
   .roleCard { top: 10px; left: 10px; }
   .followButton { top: 76px; left: 10px; }
   .routeBar { right: 10px; bottom: 10px; left: 10px; }
@@ -428,6 +461,7 @@
 
   .roleCard,
   .signalHud,
+  .civilianHud,
   .routeBar,
   .closeAlert,
   .eventAlert {
@@ -475,4 +509,5 @@
   :global(.online-signal-wrap i),
   :global(.online-exposed-wrap i) { animation: none; }
 }
+
 

@@ -539,6 +539,23 @@ button:focus-visible {
   box-shadow: 0 0 8px rgba(255, 138, 61, .46);
 }
 
+.map-hud.civilian-countdown {
+  top: 92px;
+  right: 16px;
+  width: 248px;
+  padding: 9px 12px;
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 10px;
+  align-items: center;
+  border-color: rgba(255, 138, 61, .5);
+}
+
+.civilian-countdown > span { display: grid; width: 34px; height: 34px; place-items: center; color: #071216; border-radius: 9px; background: var(--signal); font-size: 18px; }
+.civilian-countdown > div { display: grid; gap: 3px; }
+.civilian-countdown small { color: #a6846f; font: 750 8px/1 var(--font-geist-mono), monospace; letter-spacing: .1em; }
+.civilian-countdown strong { color: var(--signal); font: 900 18px/1 var(--font-geist-mono), monospace; }
+
 .close-banner {
   position: absolute;
   z-index: 820;
@@ -949,6 +966,24 @@ button:focus-visible {
   font-size: 11px;
   line-height: 1.4;
 }
+
+.strategy-panel { min-height: 190px; border-color: rgba(60,97,105,.8); }
+.strategy-panel.hunter { border-top: 2px solid var(--hunter); }
+.strategy-panel.runner { border-top: 2px solid var(--runner); }
+.practice-intel { margin-top: 12px; display: grid; grid-template-columns: 40px 1fr; gap: 10px; align-items: center; }
+.practice-intel > span { display: grid; width: 40px; height: 40px; place-items: center; color: #071216; border-radius: 9px; background: var(--signal); font-size: 19px; font-weight: 900; }
+.practice-intel p { margin: 0; display: grid; gap: 4px; }
+.practice-intel strong { color: #edf5f6; font: 850 9px/1.2 var(--font-geist-mono), monospace; letter-spacing: .06em; }
+.practice-intel small { color: #849793; font-size: 10px; line-height: 1.35; }
+.practice-strategy-buttons { margin-top: 11px; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 7px; }
+.practice-strategy-buttons button { min-width: 0; min-height: 60px; padding: 6px 4px; display: grid; place-items: center; gap: 3px; color: #dce8e9; border: 1px solid #315058; border-radius: 7px; background: rgba(7,16,19,.75); cursor: pointer; }
+.practice-strategy-buttons button:hover { border-color: var(--hunter); }
+.strategy-panel.runner .practice-strategy-buttons button:hover { border-color: var(--runner); }
+.practice-strategy-buttons button span { color: var(--hunter); font-size: 16px; }
+.strategy-panel.runner .practice-strategy-buttons button span { color: var(--runner); }
+.practice-strategy-buttons button b { font: 850 8px/1.15 var(--font-geist-mono), monospace; }
+.practice-strategy-buttons button small { color: #657c81; font: 700 7px/1 var(--font-geist-mono), monospace; }
+.hidden-distance-rule { margin: 10px 0 0; color: #80928f; font-size: 10px; line-height: 1.35; }
 
 .radar-visual {
   width: 74px;
@@ -1525,6 +1560,7 @@ button:focus-visible {
   }
 
   .proximity,
+  .strategy-panel,
   .score-row,
   .intel {
     grid-column: 1 / -1;
@@ -1590,13 +1626,20 @@ button:focus-visible {
     left: 12px;
   }
 
+  .map-hud.civilian-countdown {
+    width: calc(100% - 24px);
+    top: 84px;
+    right: 12px;
+    left: 12px;
+  }
+
   .close-banner {
     top: 96px;
     min-width: 190px;
   }
 
   .call-alert {
-    top: 96px;
+    top: 148px;
     right: 12px;
     left: 12px;
     max-width: none;
@@ -1625,6 +1668,7 @@ button:focus-visible {
   }
 
   .proximity,
+  .strategy-panel,
   .score-row,
   .intel {
     grid-column: auto;

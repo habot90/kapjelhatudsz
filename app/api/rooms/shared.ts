@@ -36,6 +36,8 @@ type RoomRow = {
   updated_at: number;
   revision: number;
   signal_index: number;
+  civilian_index: number;
+  next_civilian_at: number | null;
   capture_goal: number;
 };
 
@@ -51,6 +53,10 @@ type PlayerRow = {
   lng: number | null;
   signal_lat: number | null;
   signal_lng: number | null;
+  civilian_lat: number | null;
+  civilian_lng: number | null;
+  civilian_accuracy: "confirmed" | "uncertain" | "misleading" | null;
+  civilian_reported_at: number | null;
   position_updated_at: number | null;
   vehicle_started_at: number | null;
   switch_ends_at: number | null;
@@ -91,6 +97,12 @@ export type RoomSnapshot = {
     liveTracked: boolean;
     position: { lat: number; lng: number; updatedAt: string } | null;
     signalPosition: { lat: number; lng: number; updatedAt: string } | null;
+    civilianReport: {
+      lat: number;
+      lng: number;
+      updatedAt: string;
+      accuracy: "confirmed" | "uncertain" | "misleading";
+    } | null;
     lastExitPosition: { lat: number; lng: number; updatedAt: string } | null;
     vehicle: {
       state: VehicleState;
@@ -114,6 +126,8 @@ export type RoomSnapshot = {
     signalIndex: number;
     lastSignalAt: string | null;
     nextSignalAt: string | null;
+    civilianReportIndex: number;
+    nextCivilianReportAt: string | null;
     captureGoal: number;
     capturedCount: number;
     winner: "hunter" | "runners" | null;
@@ -140,7 +154,9 @@ const ONLINE_WINDOW_MS = 20_000;
 const RECONNECT_GRACE_MS = 120_000;
 const TOUCH_THROTTLE_MS = 7_000;
 export const GAME_DURATION_MS = 120 * 60 * 1000;
-export const SIGNAL_INTERVAL_MS = 6 * 60 * 1000;
+export const SIGNAL_INTERVAL_MS = 10 * 60 * 1000;
+export const CIVILIAN_REPORT_MIN_MS = 30 * 1000;
+export const CIVILIAN_REPORT_MAX_MS = 60 * 1000;
 export const CAPTURE_DISTANCE_METERS = 50;
 export const VEHICLE_DURATION_MS = 5 * 60 * 1000;
 export const LAST_EXIT_VISIBLE_MS = 60 * 1000;
@@ -153,6 +169,49 @@ const ZONE_INTERVAL_MS = 15 * 60 * 1000;
 const POSITION_JITTER_METERS = 15;
 const MIN_POSITION_INTERVAL_MS = 700;
 const MAX_POSITION_AGE_MS = 20_000;
+
+function stableHash(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function civilianReportDelay(code: string, index: number): number {
+  const spread = CIVILIAN_REPORT_MAX_MS - CIVILIAN_REPORT_MIN_MS;
+  return CIVILIAN_REPORT_MIN_MS + stableHash(`${code}:civilian-delay:${index}`) % (spread + 1);
+}
+
+function civilianAccuracy(code: string, index: number, role: PlayerRole): "confirmed" | "uncertain" | "misleading" {
+  const roll = stableHash(`${code}:civilian-accuracy:${index}:${role}`) % 100;
+  if (roll < 48) return "confirmed";
+  if (roll < 78) return "uncertain";
+  return "misleading";
+}
+
+function civilianReportPoint(
+  code: string,
+  index: number,
+  role: PlayerRole,
+  position: { lat: number; lng: number },
+  accuracy: "confirmed" | "uncertain" | "misleading",
+): { lat: number; lng: number } {
+  const angle = (stableHash(`${code}:civilian-angle:${index}:${role}`) % 360) * Math.PI / 180;
+  const base = stableHash(`${code}:civilian-radius:${index}:${role}`) / 0xffffffff;
+  const meters = accuracy === "confirmed"
+    ? 35 + base * 90
+    : accuracy === "uncertain"
+      ? 180 + base * 420
+      : 900 + base * 1_400;
+  const lat = position.lat + Math.sin(angle) * meters / 111_320;
+  const lng = position.lng + Math.cos(angle) * meters / (111_320 * Math.cos(position.lat * Math.PI / 180));
+  return {
+    lat: Math.max(GAME_BOUNDS.south, Math.min(GAME_BOUNDS.north, lat)),
+    lng: Math.max(GAME_BOUNDS.west, Math.min(GAME_BOUNDS.east, lng)),
+  };
+}
 
 export function jsonResponse(value: unknown, status = 200): Response {
   return Response.json(value, {
@@ -567,6 +626,7 @@ export async function startRoom(
   const result = await database.prepare(
     `UPDATE rooms
      SET status = 'playing', started_at = ?, updated_at = ?, signal_index = 0,
+         civilian_index = 0, next_civilian_at = ?,
          capture_goal = MIN(4, (SELECT COUNT(*) FROM room_players p
            WHERE p.room_code = rooms.code AND p.left_at IS NULL AND p.role = 'runner')),
          revision = revision + 1
@@ -580,7 +640,14 @@ export async function startRoom(
          WHERE p.room_code = rooms.code AND p.left_at IS NULL
            AND (p.ready = 0 OR p.last_seen_at < ?)
        )`,
-  ).bind(now, now, session.roomCode, session.playerId, now - ONLINE_WINDOW_MS).run();
+  ).bind(
+    now,
+    now,
+    now + civilianReportDelay(session.roomCode, 1),
+    session.roomCode,
+    session.playerId,
+    now - ONLINE_WINDOW_MS,
+  ).run();
   if ((result.meta.changes ?? 0) !== 1) {
     const snapshot = await getRoomSnapshot(database, session.roomCode, session.playerId, now);
     if (snapshot.status === "playing") return;
@@ -600,6 +667,8 @@ export async function startRoom(
     return database.prepare(
       `UPDATE room_players
        SET lat = ?, lng = ?, signal_lat = NULL, signal_lng = NULL,
+           civilian_lat = NULL, civilian_lng = NULL,
+           civilian_accuracy = NULL, civilian_reported_at = NULL,
            position_updated_at = ?, last_seen_at = ?, caught = 0,
            vehicle_started_at = CASE WHEN role = 'runner' THEN ? ELSE NULL END,
            switch_ends_at = NULL, vehicle_cycle = 0,
@@ -678,8 +747,14 @@ export async function syncRoomGame(
   now = Date.now(),
 ): Promise<void> {
   const room = await database.prepare(
-    "SELECT status, started_at, signal_index FROM rooms WHERE code = ?",
-  ).bind(code).first<{ status: RoomStatus; started_at: number | null; signal_index: number }>();
+    "SELECT status, started_at, signal_index, civilian_index, next_civilian_at FROM rooms WHERE code = ?",
+  ).bind(code).first<{
+    status: RoomStatus;
+    started_at: number | null;
+    signal_index: number;
+    civilian_index: number;
+    next_civilian_at: number | null;
+  }>();
   if (!room || room.status !== "playing" || room.started_at === null) return;
 
   const completedSwitches = await database.prepare(
@@ -704,25 +779,63 @@ export async function syncRoomGame(
   }
 
   const dueSignalIndex = Math.floor(Math.max(0, now - room.started_at) / SIGNAL_INTERVAL_MS);
-  if (dueSignalIndex <= room.signal_index) return;
+  if (dueSignalIndex > room.signal_index) {
+    await database.batch([
+      database.prepare(
+        `UPDATE room_players
+         SET signal_lat = lat, signal_lng = lng
+         WHERE room_code = ? AND left_at IS NULL AND caught = 0
+           AND lat IS NOT NULL AND lng IS NOT NULL
+           AND EXISTS (
+             SELECT 1 FROM rooms
+             WHERE code = ? AND status = 'playing' AND signal_index < ?
+           )`,
+      ).bind(code, code, dueSignalIndex),
+      database.prepare(
+        `UPDATE rooms
+         SET signal_index = ?, updated_at = ?, revision = revision + 1
+         WHERE code = ? AND status = 'playing' AND signal_index < ?`,
+      ).bind(dueSignalIndex, now, code, dueSignalIndex),
+    ]);
+  }
 
-  await database.batch([
+  if (room.next_civilian_at === null || now < room.next_civilian_at) return;
+  const reportIndex = room.civilian_index + 1;
+  const activePlayers = await database.prepare(
+    `SELECT id, role, lat, lng FROM room_players
+     WHERE room_code = ? AND left_at IS NULL AND caught = 0
+       AND lat IS NOT NULL AND lng IS NOT NULL
+     ORDER BY joined_at ASC, id ASC`,
+  ).bind(code).all<{ id: string; role: PlayerRole; lat: number; lng: number }>();
+  const hunter = activePlayers.results.find((player) => player.role === "hunter");
+  const runners = activePlayers.results.filter((player) => player.role === "runner");
+  const reportedRunner = runners.length
+    ? runners[stableHash(`${code}:civilian-runner:${reportIndex}`) % runners.length]
+    : null;
+  const reportStatements = [
     database.prepare(
       `UPDATE room_players
-       SET signal_lat = lat, signal_lng = lng
-       WHERE room_code = ? AND left_at IS NULL AND role = 'runner' AND caught = 0
-         AND lat IS NOT NULL AND lng IS NOT NULL
-         AND EXISTS (
-           SELECT 1 FROM rooms
-           WHERE code = ? AND status = 'playing' AND signal_index < ?
-         )`,
-    ).bind(code, code, dueSignalIndex),
-    database.prepare(
-      `UPDATE rooms
-       SET signal_index = ?, updated_at = ?, revision = revision + 1
-       WHERE code = ? AND status = 'playing' AND signal_index < ?`,
-    ).bind(dueSignalIndex, now, code, dueSignalIndex),
-  ]);
+       SET civilian_lat = NULL, civilian_lng = NULL,
+           civilian_accuracy = NULL, civilian_reported_at = NULL
+       WHERE room_code = ? AND left_at IS NULL`,
+    ).bind(code),
+  ];
+  for (const player of [hunter, reportedRunner]) {
+    if (!player) continue;
+    const accuracy = civilianAccuracy(code, reportIndex, player.role);
+    const point = civilianReportPoint(code, reportIndex, player.role, player, accuracy);
+    reportStatements.push(database.prepare(
+      `UPDATE room_players
+       SET civilian_lat = ?, civilian_lng = ?, civilian_accuracy = ?, civilian_reported_at = ?
+       WHERE id = ? AND room_code = ? AND left_at IS NULL`,
+    ).bind(point.lat, point.lng, accuracy, now, player.id, code));
+  }
+  reportStatements.push(database.prepare(
+    `UPDATE rooms
+     SET civilian_index = ?, next_civilian_at = ?, updated_at = ?, revision = revision + 1
+     WHERE code = ? AND status = 'playing' AND civilian_index < ?`,
+  ).bind(reportIndex, now + civilianReportDelay(code, reportIndex + 1), now, code, reportIndex));
+  await database.batch(reportStatements);
 }
 
 function parseVehicleSwitchKind(value: unknown): VehicleSwitchKind {
@@ -1000,12 +1113,14 @@ export async function getRoomSnapshot(
   const [room, playerResult] = await Promise.all([
     database.prepare(
       `SELECT code, status, host_player_id, created_at, started_at, updated_at,
-              revision, signal_index, capture_goal, city_id
+              revision, signal_index, civilian_index, next_civilian_at, capture_goal, city_id
        FROM rooms WHERE code = ?`,
     ).bind(code).first<RoomRow>(),
     database.prepare(
-      `SELECT id, nickname, role, ready, caught, joined_at, last_seen_at,
-              lat, lng, signal_lat, signal_lng, position_updated_at,
+       `SELECT id, nickname, role, ready, caught, joined_at, last_seen_at,
+               lat, lng, signal_lat, signal_lng,
+               civilian_lat, civilian_lng, civilian_accuracy, civilian_reported_at,
+               position_updated_at,
               vehicle_started_at, switch_ends_at, vehicle_cycle, vehicle_state, switch_kind,
               last_exit_lat, last_exit_lng, last_exit_at,
               handoff_lat, handoff_lng, handoff_selected_at
@@ -1068,13 +1183,35 @@ export async function getRoomSnapshot(
         }
       : null,
     signalPosition: (
-      (me?.role === "hunter" && player.role === "runner")
-      || (player.id === meId && player.role === "runner")
-    ) && !player.caught && player.signal_lat !== null && player.signal_lng !== null && lastSignalAtMs !== null
+      player.id !== meId
+      && me !== undefined
+      && player.role !== me.role
+      && !player.caught
+      && player.signal_lat !== null
+      && player.signal_lng !== null
+      && lastSignalAtMs !== null
+    )
       ? {
           lat: player.signal_lat,
           lng: player.signal_lng,
           updatedAt: new Date(lastSignalAtMs).toISOString(),
+        }
+      : null,
+    civilianReport: (
+      player.id !== meId
+      && me !== undefined
+      && player.role !== me.role
+      && !player.caught
+      && player.civilian_lat !== null
+      && player.civilian_lng !== null
+      && player.civilian_accuracy !== null
+      && player.civilian_reported_at !== null
+    )
+      ? {
+          lat: player.civilian_lat,
+          lng: player.civilian_lng,
+          updatedAt: new Date(player.civilian_reported_at).toISOString(),
+          accuracy: player.civilian_accuracy,
         }
       : null,
     lastExitPosition: lastExitVisible
@@ -1104,21 +1241,6 @@ export async function getRoomSnapshot(
   const capturedCount = playerResult.results.filter(
     (player) => player.role === "runner" && Boolean(player.caught),
   ).length;
-  let nearestOpponentMeters: number | null = null;
-  if (me && me.lat !== null && me.lng !== null && !me.caught) {
-    const mePosition = { lat: me.lat, lng: me.lng };
-    const distances = playerResult.results
-      .filter((player) => (
-        player.id !== me.id
-        && player.role !== me.role
-        && !player.caught
-        && player.lat !== null
-        && player.lng !== null
-        && player.last_seen_at >= now - ONLINE_WINDOW_MS
-      ))
-      .map((player) => distanceMeters(mePosition, { lat: player.lat as number, lng: player.lng as number }));
-    if (distances.length) nearestOpponentMeters = Math.round(Math.min(...distances));
-  }
   const winner = room.status === "finished" && room.started_at !== null
     ? (capturedCount >= room.capture_goal ? "hunter" : "runners")
     : null;
@@ -1145,10 +1267,12 @@ export async function getRoomSnapshot(
       signalIndex: room.signal_index,
       lastSignalAt: lastSignalAtMs === null ? null : new Date(lastSignalAtMs).toISOString(),
       nextSignalAt: nextSignalAtMs === null ? null : new Date(nextSignalAtMs).toISOString(),
+      civilianReportIndex: room.civilian_index,
+      nextCivilianReportAt: room.next_civilian_at === null ? null : new Date(room.next_civilian_at).toISOString(),
       captureGoal: room.capture_goal,
       capturedCount,
       winner,
-      nearestOpponentMeters,
+      nearestOpponentMeters: null,
     },
   };
 }
@@ -1166,4 +1290,5 @@ function getStartBlocker(
   if (players.some((player) => !player.ready)) return "Még nem minden játékos áll készen.";
   return null;
 }
+
 
