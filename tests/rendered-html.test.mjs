@@ -116,7 +116,7 @@ test("keeps the online map, protected positions and timed signals wired together
   assert.match(game, /action: "position"/);
   assert.match(game, /player\.signalPosition/);
   assert.match(game, /signalEverySeconds/);
-  assert.match(game, /nearestOpponentMeters/);
+  assert.match(game, /proximityLevel/);
   assert.match(game, /overview=simplified/);
   assert.match(game, /preferCanvas: true/);
   assert.match(game, /panInside\(advanced\.position, \{ padding: \[90, 90\], animate: false \}\)/);
@@ -136,6 +136,11 @@ test("keeps the online map, protected positions and timed signals wired together
   assert.match(roomApi, /CIVILIAN_REPORT_MIN_MS = 30 \* 1000/);
   assert.match(roomApi, /CIVILIAN_REPORT_MAX_MS = 60 \* 1000/);
   assert.match(roomApi, /nearestOpponentMeters: null/);
+  assert.match(roomApi, /proximityLevel/);
+  assert.match(game, /const WALKING_SPEED = 5 \/ 3\.6/);
+  assert.match(roomApi, /WALKING_SPEED_METERS_PER_SECOND = 5 \/ 3\.6/);
+  assert.match(game, /vehicle\?\.state === "dismounted"/);
+  assert.match(page, /Gyalog haladsz az utakon/);
   assert.match(game, /CIVIL BEJELENTÉS/);
   assert.match(game, /TÁVOLSÁG REJTVE/);
   assert.doesNotMatch(game, /KÖVETKEZŐ CIVIL HÍVÁS/);
@@ -169,4 +174,5 @@ test("keeps the online map, protected positions and timed signals wired together
   assert.match(migration, /position_updated_at/);
   assert.match(migration, /revision/);
 });
+
 
