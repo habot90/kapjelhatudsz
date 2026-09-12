@@ -143,6 +143,35 @@ test("runner signals every 2:30 while hunter signals every 10:00 and car time st
   assert.ok(runnerAtTenMinutes.players.find(p => p.id === hs.playerId).signalPosition);
 });
 
+test("server shares only a coarse proximity level with both sides", async (t) => {
+  const db = await database();
+  t.after(() => db.sqlite.close());
+  await api.ensureSchema(db);
+  const host = await api.createRoom(db, "Host", "hunter", "budapest");
+  const runner = await api.joinRoom(db, host.room.code, "Runner", "runner");
+  const hs = { ...host.session, isHost: true, role: "hunter" };
+  const rs = { ...runner.session, isHost: false, role: "runner" };
+  await api.setReady(db, hs, true, Date.now());
+  await api.setReady(db, rs, true, Date.now());
+  const originalFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
+  globalThis.fetch = async () => new Response("", { status: 503 });
+  await api.startRoom(db, hs, Date.now());
+
+  db.sqlite.prepare("UPDATE room_players SET lat = 47.5000, lng = 19.0500 WHERE id = ?").run(hs.playerId);
+  db.sqlite.prepare("UPDATE room_players SET lat = 47.5018, lng = 19.0500 WHERE id = ?").run(rs.playerId);
+  assert.equal((await api.getRoomSnapshot(db, host.room.code, hs.playerId)).game.proximityLevel, "near");
+  assert.equal((await api.getRoomSnapshot(db, host.room.code, rs.playerId)).game.proximityLevel, "near");
+
+  db.sqlite.prepare("UPDATE room_players SET lat = 47.5009 WHERE id = ?").run(rs.playerId);
+  const critical = await api.getRoomSnapshot(db, host.room.code, rs.playerId);
+  assert.equal(critical.game.proximityLevel, "critical");
+  assert.equal(critical.game.nearestOpponentMeters, null);
+
+  db.sqlite.prepare("UPDATE room_players SET lat = 47.5040 WHERE id = ?").run(rs.playerId);
+  assert.equal((await api.getRoomSnapshot(db, host.room.code, hs.playerId)).game.proximityLevel, "none");
+});
+
 test("server owns the five-minute vehicle cycle, exit trace and both switch modes", async (t) => {
   const db = await database();
   t.after(() => db.sqlite.close());
@@ -188,9 +217,16 @@ test("server owns the five-minute vehicle cycle, exit trace and both switch mode
   await api.exitVehicle(db, rs, overdueAt + 1000);
   const afterExit = await api.getRoomSnapshot(db, host.room.code, hs.playerId, overdueAt + 2000);
   assert.ok(afterExit.players.find(p => p.id === rs.playerId).lastExitPosition);
+  await api.updatePlayerPosition(
+    db,
+    rs,
+    initialRunner.position.lat + 0.00001,
+    initialRunner.position.lng,
+    overdueAt + 3000,
+  );
   await assert.rejects(
-    api.updatePlayerPosition(db, rs, initialRunner.position.lat + 0.00001, initialRunner.position.lng, overdueAt + 3000),
-    error => error.code === "VEHICLE_IMMOBILE",
+    api.updatePlayerPosition(db, rs, initialRunner.position.lat + 0.001, initialRunner.position.lng, overdueAt + 4000),
+    error => error.code === "MOVEMENT_TOO_FAST",
   );
 
   const switchStartedAt = overdueAt + 4000;
@@ -198,6 +234,10 @@ test("server owns the five-minute vehicle cycle, exit trace and both switch mode
   const switching = await api.getRoomSnapshot(db, host.room.code, rs.playerId, switchStartedAt);
   assert.equal(switching.players.find(p => p.id === rs.playerId).vehicle.state, "switching");
   assert.equal(Date.parse(switching.players.find(p => p.id === rs.playerId).vehicle.switchEndsAt) - switchStartedAt, 10_000);
+  await assert.rejects(
+    api.updatePlayerPosition(db, rs, initialRunner.position.lat + 0.00002, initialRunner.position.lng, switchStartedAt + 1000),
+    error => error.code === "VEHICLE_IMMOBILE",
+  );
   const switched = await api.getRoomSnapshot(db, host.room.code, rs.playerId, switchStartedAt + 10_001);
   assert.equal(switched.players.find(p => p.id === rs.playerId).vehicle.state, "driving");
   assert.equal(switched.players.find(p => p.id === rs.playerId).vehicle.cycle, 1);
@@ -220,4 +260,5 @@ test("server owns the five-minute vehicle cycle, exit trace and both switch mode
   assert.equal(outside.players.find(p => p.id === rs.playerId).exposed, true);
   assert.ok(outside.players.find(p => p.id === rs.playerId).position);
 });
+
 
