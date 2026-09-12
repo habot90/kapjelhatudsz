@@ -9,7 +9,6 @@ import { GAME_BOUNDS, getCity, getCityZones } from "./cities";
 
 type LatLng = [number, number];
 type RouteState = { coords: LatLng[]; index: number };
-type HandoffCandidate = { point: LatLng; distance: number };
 type AlertState = { kind: "signal" | "civilian" | "capture" | "info"; title: string; detail: string } | null;
 
 const SESSION_KEY = "kapj-el-ha-tudsz.room-session.v1";
@@ -26,6 +25,17 @@ export type MultiplayerGameProps = {
 function formatTime(seconds: number): string {
   const safe = Math.max(0, Math.floor(seconds));
   return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
+}
+
+function distanceBetween(a: LatLng, b: LatLng): number {
+  const radius = 6_371_000;
+  const toRad = (value: number) => value * Math.PI / 180;
+  const dLat = toRad(b[0] - a[0]);
+  const dLng = toRad(b[1] - a[1]);
+  const lat1 = toRad(a[0]);
+  const lat2 = toRad(b[0]);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+  return radius * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
 
 function newerSnapshot(current: RoomSnapshot, next: RoomSnapshot): boolean {
@@ -87,7 +97,7 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
   const [clockNow, setClockNow] = useState(() => Date.parse(initialRoom.serverNow));
   const [leaving, setLeaving] = useState(false);
   const [vehicleBusy, setVehicleBusy] = useState(false);
-  const [handoffCandidates, setHandoffCandidates] = useState<HandoffCandidate[]>([]);
+  const [placingHandoffCar, setPlacingHandoffCar] = useState(false);
   const [mapReady, setMapReady] = useState(false);
   const [cameraFollowing, setCameraFollowing] = useState(true);
 
@@ -102,6 +112,7 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
   const civilianMarkersRef = useRef(new Map<string, Marker>());
   const exposedMarkersRef = useRef(new Map<string, Marker>());
   const lastExitMarkersRef = useRef(new Map<string, Marker>());
+  const handoffCarMarkersRef = useRef(new Map<string, Marker>());
   const routeRef = useRef<RouteState>({ coords: [], index: 0 });
   const localPositionRef = useRef<LatLng | null>(null);
   const routeAbortRef = useRef<AbortController | null>(null);
@@ -118,6 +129,9 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
   const cameraFollowingRef = useRef(true);
   const mountedRef = useRef(true);
   const planRouteRef = useRef<(target: LatLng) => void>(() => undefined);
+  const placeHandoffRef = useRef<(target: LatLng) => void>(() => undefined);
+  const selectHandoffRef = useRef<(point: LatLng) => void>(() => undefined);
+  const placingHandoffRef = useRef(false);
 
   const me = useMemo(
     () => room.players.find((player) => player.id === room.meId) ?? null,
@@ -163,10 +177,10 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
       const incomingMe = next.players.find((player) => player.id === next.meId);
       setAlert({
         kind: "signal",
-        title: "HELYZETJEL ÉRKEZETT",
+        title: "A SAJÁT HELYZETED ELKÜLDVE",
         detail: incomingMe?.role === "hunter"
-          ? "A menekülők pillanatnyi helye rögzítve. A jelölők innen már nem mozognak."
-          : "Az üldöző pillanatnyi helye rögzítve. A jelölő innen már nem mozog.",
+          ? "Az ellenfél megkapta a helyedet; közben a menekülők új pillanatképe is megérkezett."
+          : "Az ellenfél megkapta a helyedet; közben az üldöző új pillanatképe is megérkezett.",
       });
       const signalPoints = next.players
         .filter((player) => player.signalPosition)
@@ -279,11 +293,9 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
   const elapsedSeconds = Math.max(0, (clockNow - startedAtMs) / 1000);
   const gameDuration = room.game?.durationSeconds ?? 7200;
   const nextSignalAtMs = room.game?.nextSignalAt ? Date.parse(room.game.nextSignalAt) : null;
-  const nextCivilianAtMs = room.game?.nextCivilianReportAt ? Date.parse(room.game.nextCivilianReportAt) : null;
   const gameClock = {
     gameLeft: Math.max(0, gameDuration - elapsedSeconds),
     signalLeft: nextSignalAtMs === null ? 0 : Math.max(0, (nextSignalAtMs - clockNow) / 1000),
-    civilianLeft: nextCivilianAtMs === null ? 0 : Math.max(0, (nextCivilianAtMs - clockNow) / 1000),
     phase: Math.min(ZONES.length - 1, Math.floor(elapsedSeconds / ZONE_SECONDS)),
     zoneLeft: Math.max(0, ZONE_SECONDS - (elapsedSeconds % ZONE_SECONDS)),
   };
@@ -304,6 +316,7 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
     const civilianMarkers = civilianMarkersRef.current;
     const exposedMarkers = exposedMarkersRef.current;
     const lastExitMarkers = lastExitMarkersRef.current;
+    const handoffCarMarkers = handoffCarMarkersRef.current;
     void import("leaflet").then((L) => {
       if (disposed || !mapNodeRef.current) return;
       leafletRef.current = L;
@@ -373,7 +386,11 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
       selfMarkerRef.current = L.marker(initialPosition, { icon: selfIcon, zIndexOffset: 1200 }).addTo(map);
       setMapReady(true);
 
-      map.on("click", (event) => planRouteRef.current([event.latlng.lat, event.latlng.lng]));
+      map.on("click", (event) => {
+        const point: LatLng = [event.latlng.lat, event.latlng.lng];
+        if (placingHandoffRef.current) placeHandoffRef.current(point);
+        else planRouteRef.current(point);
+      });
       const animate = (frameTime: number) => {
         animationFrame = requestAnimationFrame(animate);
         if (document.hidden) {
@@ -443,6 +460,8 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
       exposedMarkers.clear();
       lastExitMarkers.forEach((marker) => marker.remove());
       lastExitMarkers.clear();
+      handoffCarMarkers.forEach((marker) => marker.remove());
+      handoffCarMarkers.clear();
       zoneLayersRef.current.forEach((layer) => layer.remove());
       zoneLayersRef.current = [];
       mapRef.current?.remove();
@@ -480,15 +499,6 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
       if (!rawCoordinates?.length) throw new Error("route");
       const coords = rawCoordinates.map(([lng, lat]) => [lat, lng] as LatLng);
       routeRef.current = { coords: [from, ...coords], index: 0 };
-      if (currentMe.role === "runner") {
-        const startedAt = currentRoom.startedAt ? Date.parse(currentRoom.startedAt) : Date.now();
-        const phase = Math.min(getCityZones(currentRoom.cityId).length - 1, Math.floor(Math.max(0, Date.now() + serverOffsetRef.current - startedAt) / (ZONE_SECONDS * 1000)));
-        const zone = getCityZones(currentRoom.cityId)[phase];
-        const usable = coords.filter((point) => map.distance(from, point) >= 120 && map.distance(point, [zone.lat, zone.lng]) <= zone.radius);
-        const indexes = usable.length ? [0.25, 0.55, 0.85].map((ratio) => Math.min(usable.length - 1, Math.floor((usable.length - 1) * ratio))) : [];
-        const unique = indexes.map((index) => usable[index]).filter((point, index, all) => all.findIndex((item) => item[0] === point[0] && item[1] === point[1]) === index);
-        setHandoffCandidates(unique.map((point) => ({ point, distance: Math.round(map.distance(from, point)) })));
-      }
       routeLineRef.current?.remove();
       routeLineRef.current = L.polyline(routeRef.current.coords, {
         color: currentMe.role === "hunter" ? "#36bffa" : "#ff8a45",
@@ -598,6 +608,41 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
       civilianMarkersRef.current.set(player.id, marker);
     });
   }, [mapReady, room.players, room.game?.civilianReportIndex]);
+
+  useEffect(() => {
+    const L = leafletRef.current;
+    const map = mapRef.current;
+    if (!L || !map) return;
+    const cars = me?.vehicle?.handoffCars ?? [];
+    const ids = new Set(cars.map((car) => car.id));
+    handoffCarMarkersRef.current.forEach((marker, id) => {
+      if (!ids.has(id)) {
+        marker.remove();
+        handoffCarMarkersRef.current.delete(id);
+      }
+    });
+    cars.forEach((car, index) => {
+      const existing = handoffCarMarkersRef.current.get(car.id);
+      if (existing) {
+        existing.setLatLng([car.lat, car.lng]);
+        return;
+      }
+      const icon = L.divIcon({
+        className: "online-handoff-car",
+        html: `<span>🚙</span><b>${index + 1}</b>`,
+        iconSize: [38, 38],
+        iconAnchor: [19, 19],
+      });
+      const marker = L.marker([car.lat, car.lng], { icon, zIndexOffset: 720 })
+        .addTo(map)
+        .bindTooltip(`Saját egyeztetett autó ${index + 1}`);
+      marker.on("click", (event) => {
+        L.DomEvent.stopPropagation(event);
+        selectHandoffRef.current([car.lat, car.lng]);
+      });
+      handoffCarMarkersRef.current.set(car.id, marker);
+    });
+  }, [mapReady, me?.vehicle?.handoffCars]);
 
   useEffect(() => {
     const L = leafletRef.current;
@@ -765,7 +810,7 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
     }
   };
 
-  const handleHandoffSelection = async (point: LatLng) => {
+  const handleHandoffSelection = useCallback(async (point: LatLng) => {
     if (vehicleBusy) return;
     setVehicleBusy(true);
     try {
@@ -777,7 +822,50 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
     } finally {
       setVehicleBusy(false);
     }
+  }, [acceptSnapshot, session, vehicleBusy]);
+
+  const handlePlaceHandoffCar = useCallback(async (point: LatLng) => {
+    if (vehicleBusy) return;
+    setVehicleBusy(true);
+    try {
+      const next = await patchRoom(session, { action: "place_handoff_car", lat: point[0], lng: point[1] });
+      acceptSnapshot(next);
+      setAlert({ kind: "info", title: "AUTÓ ELHELYEZVE", detail: `Egyeztetett autók: ${next.players.find((player) => player.id === next.meId)?.vehicle?.handoffCars.length ?? 0}/10.` });
+      placingHandoffRef.current = false;
+      setPlacingHandoffCar(false);
+      setRouteMessage("Autó elhelyezve · válassz útvonalat vagy rakj le újabbat");
+    } catch (error) {
+      setAlert({ kind: "info", title: "AZ AUTÓ NEM HELYEZHETŐ EL", detail: error instanceof Error ? error.message : "Válassz másik közúti pontot." });
+    } finally {
+      setVehicleBusy(false);
+    }
+  }, [acceptSnapshot, session, vehicleBusy]);
+
+  const toggleHandoffPlacement = () => {
+    const next = !placingHandoffRef.current;
+    placingHandoffRef.current = next;
+    setPlacingHandoffCar(next);
+    setRouteMessage(next ? "Koppints az aktív zónán belül egy útra az autó lerakásához" : "Autólerakás kikapcsolva");
   };
+
+  const handleRemoveHandoffCar = async (carId: string) => {
+    if (vehicleBusy) return;
+    setVehicleBusy(true);
+    try {
+      const next = await patchRoom(session, { action: "remove_handoff_car", carId });
+      acceptSnapshot(next);
+      setAlert({ kind: "info", title: "AUTÓ TÖRÖLVE", detail: "A hely felszabadult egy másik egyeztetett autónak." });
+    } catch (error) {
+      setAlert({ kind: "info", title: "AZ AUTÓ NEM TÖRÖLHETŐ", detail: error instanceof Error ? error.message : "Próbáld újra." });
+    } finally {
+      setVehicleBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    placeHandoffRef.current = (point) => void handlePlaceHandoffCar(point);
+    selectHandoffRef.current = (point) => void handleHandoffSelection(point);
+  }, [handleHandoffSelection, handlePlaceHandoffCar]);
 
   const handleLeave = async () => {
     if (leaving) return;
@@ -880,13 +968,8 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
 
             <div className={styles.signalHud}>
               <span className={styles.signalPulse} />
-              <span><small>{role === "hunter" ? "MENEKÜLŐK HIVATALOS JELE" : "ÜLDÖZŐ HIVATALOS JELE"}</small><strong>{formatTime(gameClock.signalLeft)}</strong></span>
+              <span><small>A SAJÁT HELYZETED ELKÜLDÉSÉIG</small><strong>{formatTime(gameClock.signalLeft)}</strong></span>
               <div><i style={{ width: `${Math.max(0, Math.min(100, 100 - gameClock.signalLeft / (room.game?.signalEverySeconds ?? 600) * 100))}%` }} /></div>
-            </div>
-
-            <div className={styles.civilianHud}>
-              <span>☎</span>
-              <span><small>KÖVETKEZŐ CIVIL HÍVÁS</small><strong>{formatTime(gameClock.civilianLeft)}</strong></span>
             </div>
 
             {closeLevel !== "none" && (
@@ -960,26 +1043,30 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
                   <>
                     <div className={styles.vehicleClock}>{vehicle.overdue ? "TÚLIDŐ" : formatTime(vehicleLeft)}</div>
                     <p>{vehicle.overdue ? "Az üldöző folyamatosan lát, amíg ki nem szállsz." : vehicleWarning === "danger" ? "10 másodpercen belül cserélj autót!" : vehicleWarning === "warning" ? "Hamarosan autót kell cserélned." : "Öt perc után az üldöző élőben látni fog."}</p>
-                    {vehicleLeft <= 60 && !vehicle.overdue && (
-                      <div className={styles.handoffChoices}>
-                        <small>VÁLASSZ ÁTADÁSI PONTOT</small>
-                        {handoffCandidates.length ? (
-                          <div>{handoffCandidates.map((candidate, index) => {
-                            const point = candidate.point;
-                            const selected = vehicle.handoffPoint && Math.abs(vehicle.handoffPoint.lat - point[0]) < 0.00001 && Math.abs(vehicle.handoffPoint.lng - point[1]) < 0.00001;
-                            return <button type="button" key={`${point[0]}-${point[1]}`} className={selected ? styles.handoffSelected : ""} disabled={vehicleBusy} onClick={() => void handleHandoffSelection(point)}>{String.fromCharCode(65 + index)}<span>{candidate.distance} m</span></button>;
-                          })}</div>
-                        ) : <p>Jelölj ki előbb egy közúti útvonalat.</p>}
-                      </div>
-                    )}
+                    <div className={styles.handoffChoices}>
+                      <button type="button" className={placingHandoffCar ? styles.handoffSelected : ""} disabled={vehicleBusy || vehicle.handoffCars.length >= 10} onClick={toggleHandoffPlacement}>🚙 AUTÓ LERAKÁSA <span>{vehicle.handoffCars.length}/10</span></button>
+                      <small>{placingHandoffCar ? "KOPPINTS EGY ÚTRA AZ AKTÍV ZÓNÁBAN" : "SAJÁT EGYEZTETETT AUTÓK"}</small>
+                      {vehicle.handoffCars.length > 0 && <div>{vehicle.handoffCars.map((car, index) => {
+                        const point: LatLng = [car.lat, car.lng];
+                        const selected = vehicle.handoffPoint && Math.abs(vehicle.handoffPoint.lat - car.lat) < 0.00001 && Math.abs(vehicle.handoffPoint.lng - car.lng) < 0.00001;
+                        const distance = me?.position ? Math.round(distanceBetween([me.position.lat, me.position.lng], point)) : 0;
+                        return <span className={styles.handoffCarRow} key={car.id}><button type="button" className={selected ? styles.handoffSelected : ""} disabled={vehicleBusy} onClick={() => void handleHandoffSelection(point)}>AUTÓ {index + 1}<small>{distance} m</small></button><button type="button" disabled={vehicleBusy} aria-label={`Autó ${index + 1} törlése`} onClick={() => void handleRemoveHandoffCar(car.id)}>×</button></span>;
+                      })}</div>}
+                    </div>
                     <button type="button" className={styles.exitVehicleButton} disabled={vehicleBusy} onClick={() => void handleVehicleAction("exit")}>KISZÁLLOK</button>
                   </>
                 ) : vehicle.state === "dismounted" ? (
                   <>
                     <div className={styles.vehicleClock}>ÁLLSZ</div>
                     <p>Gyalogos mozgás nincs. Válaszd ki a következő autót.</p>
+                    {vehicle.handoffCars.length > 0 && <div className={styles.handoffChoices}><small>VÁLASSZ KÖZELI AUTÓT</small><div>{vehicle.handoffCars.map((car, index) => {
+                      const point: LatLng = [car.lat, car.lng];
+                      const selected = vehicle.handoffPoint && Math.abs(vehicle.handoffPoint.lat - car.lat) < 0.00001 && Math.abs(vehicle.handoffPoint.lng - car.lng) < 0.00001;
+                      const distance = me?.position ? Math.round(distanceBetween([me.position.lat, me.position.lng], point)) : 0;
+                      return <button type="button" key={car.id} className={selected ? styles.handoffSelected : ""} disabled={vehicleBusy} onClick={() => void handleHandoffSelection(point)}>AUTÓ {index + 1}<span>{distance} m</span></button>;
+                    })}</div></div>}
                     <div className={styles.switchButtons}>
-                      <button type="button" disabled={vehicleBusy || !vehicle.handoffPoint} onClick={() => void handleVehicleAction("prearranged")}><strong>EGYEZTETETT AUTÓ</strong><small>{vehicle.handoffPoint ? "10 MÁSODPERC" : "NINCS KIJELÖLT PONT"}</small></button>
+                      <button type="button" disabled={vehicleBusy || !vehicle.handoffPoint} onClick={() => void handleVehicleAction("prearranged")}><strong>EGYEZTETETT AUTÓBA ÜLÖK</strong><small>{vehicle.handoffPoint ? "10 MÁSODPERC" : "NINCS KIJELÖLT PONT"}</small></button>
                       <button type="button" disabled={vehicleBusy} onClick={() => void handleVehicleAction("hitchhike")}><strong>STOPPOLOK</strong><small>25–45 MÁSODPERC</small></button>
                     </div>
                   </>
@@ -1030,5 +1117,4 @@ export default function MultiplayerGame({ session, initialRoom, onExit }: Multip
     </main>
   );
 }
-
 

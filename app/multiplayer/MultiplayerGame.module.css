@@ -16,7 +16,7 @@
   background-size: auto, 34px 34px, 34px 34px, auto;
 }
 
-.vehiclePanel { border-color: rgba(255,138,69,.34); }
+.vehiclePanel { order: -1; border-color: rgba(255,138,69,.34); }
 .vehiclePanel .panelHead b { color: var(--orange); }
 .vehiclePanel .panelHead b i { background: currentColor; box-shadow: 0 0 9px currentColor; }
 .vehicleClock { margin: 12px 0 7px; color: #f4fbff; font: 950 clamp(30px,4vw,44px)/1 var(--font-geist-mono), monospace; letter-spacing: -.06em; }
@@ -42,6 +42,8 @@
 .handoffChoices button span { color: #86a0ac; font-size: 9px; }
 .handoffChoices button.handoffSelected { color: #071116; border-color: var(--green); background: var(--green); box-shadow: 0 0 16px rgba(67,220,141,.2); }
 .handoffChoices button.handoffSelected span { color: #173d2b; }
+.handoffCarRow { min-width: 0; display: grid; grid-template-columns: 1fr 28px; gap: 3px; }
+.handoffCarRow > button:last-child { min-height: 42px; color: #ff9187; font-size: 18px; }
 
 @media (max-width: 700px) {
   .vehicleClock { font-size: 32px; }
@@ -509,5 +511,4 @@
   :global(.online-signal-wrap i),
   :global(.online-exposed-wrap i) { animation: none; }
 }
-
 

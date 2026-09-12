@@ -1,0 +1,1 @@
+ALTER TABLE `room_players` ADD `handoff_cars` text DEFAULT '[]' NOT NULL;

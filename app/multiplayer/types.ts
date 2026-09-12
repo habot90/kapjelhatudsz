@@ -14,6 +14,8 @@ export type CivilianReport = PlayerPosition & {
   accuracy: "confirmed" | "uncertain" | "misleading";
 };
 
+export type HandoffCar = PlayerPosition & { id: string };
+
 export type RoomPlayer = {
   id: string;
   nickname: string;
@@ -37,6 +39,7 @@ export type RoomPlayer = {
     cycle: number;
     overdue: boolean;
     handoffPoint: PlayerPosition | null;
+    handoffCars: HandoffCar[];
   } | null;
 };
 
@@ -47,7 +50,6 @@ export type RoomGameState = {
   lastSignalAt: string | null;
   nextSignalAt: string | null;
   civilianReportIndex: number;
-  nextCivilianReportAt: string | null;
   captureGoal: number;
   capturedCount: number;
   winner: "hunter" | "runners" | null;
@@ -97,6 +99,8 @@ export type RoomPatchAction =
   | { action: "heartbeat" }
   | { action: "position"; lat: number; lng: number }
   | { action: "exit_vehicle" }
+  | { action: "place_handoff_car"; lat: number; lng: number }
+  | { action: "remove_handoff_car"; carId: string }
   | { action: "select_handoff"; lat: number; lng: number }
   | { action: "start_vehicle_switch"; kind: VehicleSwitchKind };
 
@@ -105,5 +109,4 @@ export type ConnectionState =
   | "online"
   | "reconnecting"
   | "offline";
-
 
